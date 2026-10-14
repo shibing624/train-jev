@@ -62,7 +62,7 @@ flowchart LR
         H["noul: false,true | score: 0..5 | choice: A..P<br/>初始化 = lm_head 对应 verbalizer 行"]
     end
     P --> L -->|最后一个 token 的 hidden| H --> S["按 kind 切槽位 → softmax / T_kind → 概率"]
-    T["Teacher: Jev 1.13 完整分布<br/>(jev-distill-corpus-v3)"] -.KL + 0.5·RPS.-> S
+    T["Teacher: Jev 1.13 完整分布<br/>(jev-distill-corpus-v3)"] -.->|"KL + 0.5 RPS"| S
 ```
 
 | 配置项 | 取值 |
@@ -248,33 +248,6 @@ python scripts/pk_benchmark.py report jev-4b=eval/pk_jev-4b.jsonl
 huggingface-cli download Qwen/Qwen3.8-27B --local-dir models/Qwen3.8-27B
 python scripts/check_init.py --base models/Qwen3.8-27B             # PASS
 GPUS=0,1,2,3,4,5,6,7 bash scripts/run_train_27b.sh                 # -> runs/jev-27b/best
-```
-
-## 📁 Project Structure
-
-```
-train-jev/
-├── trainjev/                  # 核心代码
-│   ├── data.py                # prompt 模板（bare-v1）、编码与截断、micro-batch 分桶
-│   ├── modeling.py            # 24 槽位决策头、verbalizer 校验、hidden 读取、模型加载
-│   ├── losses.py              # KL + RPS 损失
-│   ├── metrics.py             # KL / top-1 / AUROC / ECE / score MAE
-│   ├── train.py               # 训练入口（torchrun DDP）
-│   ├── evaluate.py            # 语料评测 + 温度校准
-│   ├── eval_vision.py         # 零样本图像决策评测
-│   └── serve.py               # /v1/systemone + /v1/decide 服务（含 >16 选项锦标赛）
-├── scripts/                   # 一键脚本
-│   ├── prepare_data.sh / run_train.sh / run_train_27b.sh / run_eval.sh / run_serve.sh / run_decision_index.sh
-│   ├── check_init.py          # 训练前检查：未训练的头 == 底座受限读出
-│   ├── di_sample.py           # Decision Index 分层抽样 + 对应的评分套件
-│   ├── di_index.py            # 去掉部分基准后重算 index（可附带榜单参考模型）
-│   ├── pk_build.py            # 从公开数据集构建 13 场景 PK 题库
-│   ├── pk_benchmark.py        # PK 评测：跑任意 /v1/systemone 服务 + 配对对比报告
-│   └── compare_corpus.py      # 多个评测 summary 并排对比
-├── examples/client.py         # 最小客户端示例
-├── patches/                   # 第三方评测工具的小补丁
-├── docs/                      # training / evaluation / results
-└── tests/                     # 单元测试（CPU 可跑）
 ```
 
 ## ✅ TODO

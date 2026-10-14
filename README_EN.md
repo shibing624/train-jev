@@ -71,7 +71,7 @@ flowchart LR
     P["[kind] choice<br/>[state] ...<br/>[question] ...<br/>[options]<br/>A) ...<br/>[decision]:"] --> L["Qwen3.5 backbone (frozen bf16)<br/>+ LoRA r16"]
     L -->|hidden at last token| H["24-slot fp32 head<br/>noul | score 0..5 | choice A..P<br/>init = lm_head rows"]
     H --> S["slice by kind → softmax / T_kind"]
-    T["Teacher: Jev 1.13 distributions<br/>(jev-distill-corpus-v3)"] -.KL + 0.5·RPS.-> S
+    T["Teacher: Jev 1.13 distributions<br/>(jev-distill-corpus-v3)"] -.->|"KL + 0.5 RPS"| S
 ```
 
 | item | value |
@@ -176,18 +176,6 @@ GPUS=0,1,2,3,4,5,6,7 bash scripts/run_train_27b.sh
 ```
 
 Decision Index, Kev transfer-v4, image and PK evaluation: [docs/evaluation.md](docs/evaluation.md).
-
-## 📁 Project Structure
-
-```
-train-jev/
-├── trainjev/          # data / modeling / losses / metrics / train / evaluate / eval_vision / serve
-├── scripts/           # prepare_data, run_train(_27b), run_eval, run_serve, run_decision_index, check_init, di_*, pk_*
-├── examples/          # client.py
-├── patches/           # small patch for the decision-index kit
-├── docs/              # training.md, evaluation.md, results.md
-└── tests/             # unit tests (CPU)
-```
 
 ## ✅ TODO
 
