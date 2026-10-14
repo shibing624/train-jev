@@ -9,8 +9,9 @@ Five complementary evaluations, from "did the distillation work" to "is it usefu
 | 3 | Kev `transfer-v4` | Accuracy and calibration on 656 questions from unseen sources | `kev.benchmark --remote` |
 | 4 | Decision Index vision sets | Does text-only distillation transfer to images? | `trainjev.eval_vision` |
 | 5 | 13-dataset classification PK | Accuracy / calibration on 13 public datasets (en + zh), paired against other systems | `scripts/pk_*.py` |
+| 6 | Wide-choice intent classification | How to read choices with 17–256 options (`single` / `tournament` / `permute`) | `scripts/wide_build.py` + `scripts/pk_benchmark.py` |
 
-(2), (3) and (5) talk to a running server, so any System One compatible endpoint can be compared on the
+(2), (3), (5) and (6) talk to a running server, so any System One compatible endpoint can be compared on the
 same rows.
 
 ## 1. jev-distill-corpus-v3
@@ -143,3 +144,19 @@ Fixed questions (no per-task prompt engineering):
 | choice | `choice` over the label names (`_` → space): "Which label best describes this input?" |
 | score | `choice` over the ordered level names: "Rate this input on the given scale." |
 | boolean | `noul`: "Is the statement or property described true for this input?" |
+
+## 6. Wide-choice intent classification (17–256 options)
+
+Zero-shot intent classification with every intent offered in one `choice` question: CLINC150 (150 in-scope intents),
+BANKING77 (77) and MASSIVE en (59). BANKING77 and MASSIVE en are byte-identical to the PK scenarios.
+
+```shell
+python scripts/wide_build.py --out data/wide
+for s in single tournament permute; do
+  python scripts/pk_benchmark.py run --url http://127.0.0.1:8020 --suite data/wide --strategy $s --out eval/wide_$s.jsonl
+done
+python scripts/pk_benchmark.py report --seen '' single=eval/wide_single.jsonl tournament=eval/wide_tournament.jsonl \
+    permute=eval/wide_permute.jsonl
+```
+
+`--strategy` is sent in each request body and overrides the server's `--strategy`; other System One servers ignore it.

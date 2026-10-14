@@ -2,8 +2,15 @@
 
 ## [Unreleased]
 
+#### features
+
+- 超过 16 个选项的 `choice` 题新增 `single` 和 `permute` 两种读法，和原有的 `tournament` 一起，对应 JEV-27B-VL `serve_decide.py` 的三种策略。服务端用 `--strategy` 选（默认 `single`，和 JEV-27B-VL 在 Qwen 底座上的默认一致），单个请求也可以在请求体里传 `"strategy"` 覆盖。`single` 一次前向读完：A–P 用训练过的决策头，Q–Z、AA、AB… 用底座 `lm_head` 的行、bias 为 0（`trainjev.modeling.choice_labels`）。`tournament` 现在把各组放在一个 batch 里打分。
+- `trainjev.serve --device cpu`：没有 GPU 时用 fp32 在 CPU 上推理（很慢，只适合小规模核对）。
+- 宽选项意图分类评测：`scripts/wide_build.py` 从 HF Hub 构建 CLINC150（150 类）/ BANKING77（77 类）/ MASSIVE en（59 类），后两个和 PK 题库逐字节一致；`scripts/run_wide.sh` 对三种策略各跑一遍并输出配对报告。`scripts/pk_benchmark.py run` 新增 `--strategy` 和 `--log_every`。
+
 #### fixes
 
+- README 里"`choice` 2–16 个选项，>16 个用锦标赛扩展到 256"的说法不准确：JEV-27B-VL 在 Qwen 底座上默认是一次前向读 256 个标签，锦标赛是它在 Gemma 底座上的默认做法。README / README_EN / docs 已改写。
 - 仓库不再作为 Python 库打包：去掉 `pyproject.toml` 里的 setuptools 配置，不再支持 `pip install -e .` 以及 `.[serve]`、`.[dev]` 这些 extras。依赖只通过 `requirements.txt` 安装，在仓库根目录用 `python -m trainjev.train` 训练。
 - README 方法图的虚线边写成了 `-.KL + 0.5·RPS.->`，`+` 不在引号里，GitHub 的 Mermaid 直接报 Lexical error，整张图渲染不出来。边标签改成 `-.->|"KL + 0.5 RPS"|`。
 - 删掉 README / README_EN 里的 Project Structure 目录树。

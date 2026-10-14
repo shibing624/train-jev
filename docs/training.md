@@ -92,7 +92,11 @@ loss = Σ_rows weight · [ KL(target ‖ softmax(z)) + 0.5 · RPS(target, softma
   41% of the time on JEV-27B's measurement).
 - **Kind-stratified batches.** Each 128-row step draws ≥ 1/6 of the batch from each kind, the rest uniformly. The
   sampling RNG is seeded by the step, so every rank sees the same global batch and takes its `rank::world` slice.
-- **> 16 options** are dropped from training; at serving time they go through the tournament (`trainjev/serve.py`).
+- **> 16 options** are dropped from training. At serving time `trainjev/serve.py --strategy` picks how they are read
+  (the three strategies of JEV-27B-VL's `serve_decide.py`): `single` (default; one pass, labels A–P from the trained
+  head, then Q–Z, AA, AB, … read from the backbone's own `lm_head` rows with zero bias), `tournament` (groups of ≤ 16
+  plus a final, only ever reading the trained A–P) or `permute` (`single` over 4 option orders, averaged). See
+  [results.md §7](results.md#7-wide-choice-questions-17256-options).
 
 ## 6. Optimisation
 

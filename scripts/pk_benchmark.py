@@ -22,6 +22,9 @@ Compare runs on the rows they share (the first one is the McNemar reference)::
 
 Five sources overlap with Kev's training data (``--seen ag_news,banking77,sst5,yelp_stars,boolq``); ``report``
 prints them separately so systems trained on them can be compared fairly.
+
+``--strategy single|tournament|permute`` is sent with each request (train-jev servers only) and picks how choices
+with more than 16 options are read; see ``trainjev/serve.py``. The wide-choice suite is ``scripts/wide_build.py``.
 """
 import argparse
 import json
@@ -48,27 +51,30 @@ def load_suite(path):
     return out
 
 
-def post(url, body):
+def post(url, body, strategy=""):
+    if strategy:
+        body = dict(body, strategy=strategy)
     req = urllib.request.Request(url + "/v1/systemone", json.dumps(body).encode(), {"content-type": "application/json"})
     t = time.perf_counter()
     with urllib.request.urlopen(req, timeout=900) as r:
         return json.loads(r.read()), time.perf_counter() - t
 
 
-def one(url, model, meta, i, row):
+def one(url, model, meta, i, row, strategy=""):
     text, labels = row["text"][:4000], meta["labels"]
     rec = {"scenario": meta["name"], "index": i, "primitive": meta["primitive"], "lang": meta["lang"],
            "gold": row["label"]}
     if meta["primitive"] == "boolean":
         out, dt = post(url, {"model": model, "state": text,
-                             "questions": {"q": {"type": "noul", "instructions": meta.get("question") or NOUL_Q}}})
+                             "questions": {"q": {"type": "noul", "instructions": meta.get("question") or NOUL_Q}}},
+                       strategy)
         p = out["answers"]["q"]["noul"]
         rec.update(pred="true" if p >= 0.5 else "false", conf=max(p, 1 - p), probs=[1 - p, p])
     else:
         opts = [lab.replace("_", " ") for lab in labels]
         q = SCORE_Q if meta["primitive"] == "score" else CHOICE_Q
         out, dt = post(url, {"model": model, "state": text, "questions": {
-            "q": {"type": "choice", "instructions": q, "criteria": {o: None for o in opts}}}})
+            "q": {"type": "choice", "instructions": q, "criteria": {o: None for o in opts}}}}, strategy)
         pr = out["answers"]["q"]["probabilities"]
         ps = [pr[o] for o in opts]
         k = max(range(len(ps)), key=ps.__getitem__)
@@ -87,9 +93,9 @@ def cmd_run(a):
     print(f"resume {len(done)}, todo {len(jobs)} -> {a.out}", flush=True)
     t0 = time.time()
     with open(a.out, "a", encoding="utf-8") as fh, ThreadPoolExecutor(a.workers) as ex:
-        for n, rec in enumerate(ex.map(lambda j: one(a.url, a.model, *j), jobs), 1):
+        for n, rec in enumerate(ex.map(lambda j: one(a.url, a.model, *j, a.strategy), jobs), 1):
             fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
-            if n % 100 == 0:
+            if n % a.log_every == 0:
                 fh.flush()
                 print(f"  {n}/{len(jobs)}  {time.time() - t0:.0f}s", flush=True)
     print(f"done in {time.time() - t0:.0f}s")
@@ -187,6 +193,8 @@ def main(argv=None):
     r.add_argument("--suite", default="data/pk")
     r.add_argument("--limit", type=int, default=100, help="rows per scenario")
     r.add_argument("--workers", type=int, default=1, help="1 = serial, clean latency")
+    r.add_argument("--strategy", default="", help="single | tournament | permute (train-jev servers, > 16 options)")
+    r.add_argument("--log_every", type=int, default=100)
     r.add_argument("--out", required=True)
     p = sub.add_parser("report")
     p.add_argument("runs", nargs="+", help="name=path.jsonl")

@@ -14,7 +14,13 @@ that replaces ``lm_head`` on the decision path:
 
 The head rows are initialised from the backbone's ``lm_head`` rows of those verbalizer tokens, so at step 0 the head
 reproduces the pretrained model's restricted next-token distribution exactly (see ``scripts/check_init.py``).
+
+Choices with more than 16 options (``single`` / ``permute`` strategies in ``trainjev.serve``) read the extra labels
+(``Q`` .. ``Z``, ``AA``, ...) from the backbone's own ``lm_head`` rows with zero bias, as JEV-27B-VL's
+``serve_decide.py`` does; these rows are never trained and are not part of ``head.pt``.
 """
+import string
+
 import torch
 import torch.nn as nn
 
@@ -24,6 +30,7 @@ VERBALIZERS = ["false", "true", "0", "1", "2", "3", "4", "5"] + LABELS
 # Qwen3.5 tokenizer ids of the verbalizers; checked at load time by ``check_verbalizers``.
 VERBALIZER_IDS = [3721, 1802, 15, 16, 17, 18, 19, 20] + list(range(32, 48))
 RANGES = {"noul": (0, 2), "score": (2, 8), "choice": (8, 24)}
+MAX_OPTIONS = 256
 # Every projection of both layer types of Qwen3.5: Gated DeltaNet (in_proj_qkv / in_proj_z / out_proj),
 # full attention (q / k / v / o_proj) and the MLP.
 LORA_TARGETS = ["in_proj_qkv", "in_proj_z", "out_proj", "q_proj", "k_proj", "v_proj", "o_proj",
@@ -38,17 +45,42 @@ def check_verbalizers(tok):
         assert t in tok.encode(f"x\n{lab}) y", add_special_tokens=False), lab
 
 
+def choice_labels(tok, n=MAX_OPTIONS):
+    """``serve_decide.py``'s option labels: ``A`` .. ``Z`` then ``AA`` .. ``ZZ``, keeping those that are one token on
+    their own and inside an option line; the first 16 are the trained ``A`` .. ``P``. -> ``(labels, token ids)``."""
+    labs, ids = [], []
+    for lab in list(string.ascii_uppercase) + [a + b for a in string.ascii_uppercase for b in string.ascii_uppercase]:
+        t = tok.encode(lab, add_special_tokens=False)
+        if len(t) == 1 and t[0] in tok.encode(f"x\n{lab}) y", add_special_tokens=False):
+            labs.append(lab)
+            ids.append(t[0])
+        if len(labs) == n:
+            break
+    assert labs[:16] == LABELS and ids[:16] == VERBALIZER_IDS[8:], "first labels must be the trained A-P head"
+    return labs, ids
+
+
 class DecisionHead(nn.Module):
-    """24-slot fp32 head: ``logits[slot] = W[slot] . h + b[slot]``, sliced to the question's kind and option count."""
+    """24-slot fp32 head: ``logits[slot] = W[slot] . h + b[slot]``, sliced to the question's kind and option count.
+
+    ``wide`` (optional, untrained, not saved) holds the ``lm_head`` rows of choice labels 17+ for wide choices.
+    """
 
     def __init__(self, init_rows):
         super().__init__()
         self.weight = nn.Parameter(init_rows.detach().float().clone())  # [24, d]
         self.bias = nn.Parameter(torch.zeros(init_rows.shape[0]))
+        self.register_buffer("wide", torch.zeros(0, init_rows.shape[1]), persistent=False)
 
     def logits(self, h, kind, n):
         lo, _ = RANGES[kind]
-        return h.float() @ self.weight[lo: lo + n].T + self.bias[lo: lo + n]
+        if kind != "choice" or n <= 16:
+            return h.float() @ self.weight[lo: lo + n].T + self.bias[lo: lo + n]
+        if n - 16 > self.wide.shape[0]:
+            raise ValueError(f"{n} options need wide label rows (set head.wide, as load_model does)")
+        w = torch.cat([self.weight[lo: lo + 16], self.wide[: n - 16]])
+        b = torch.cat([self.bias[lo: lo + 16], self.bias.new_zeros(n - 16)])
+        return h.float() @ w.T + b
 
 
 def last_hidden(body, batch_ids, pad_id, device):
@@ -81,6 +113,8 @@ def load_model(base, adapter="", dtype=torch.bfloat16, device="cuda"):
     check_verbalizers(tok)
     m = AutoModelForCausalLM.from_pretrained(base, dtype=dtype)
     head = DecisionHead(m.get_output_embeddings().weight[VERBALIZER_IDS])
+    tok.choice_labels, wide_ids = choice_labels(tok)  # labels 17-256: untrained lm_head rows, see module docstring
+    head.wide = m.get_output_embeddings().weight[wide_ids[16:]].detach().float().clone()
     body = m.model
     if adapter:
         from peft import PeftModel

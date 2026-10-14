@@ -21,7 +21,7 @@
 | 类型 | 问题示例 | 输出 |
 |---|---|---|
 | `noul` | 这条工单是平台级故障吗？ | P(true) |
-| `choice` | 这条工单该派给哪个团队？（2–16 个选项，>16 个用锦标赛扩展到 256） | 每个选项的概率 |
+| `choice` | 这条工单该派给哪个团队？（2–256 个选项；前 16 个是训练过的 A–P，更多时见下方"宽选项"） | 每个选项的概率 |
 | `score` | 这条工单紧急程度是多少？（0–5 级） | 6 级分布 + 期望分 |
 
 **train-jev** 提供从数据、训练、校准、评测到部署的完整链路：
@@ -237,9 +237,24 @@ python -m trainjev.eval_vision --base models/Qwen3.5-4B --adapter runs/jev-4b/be
 python scripts/pk_build.py --out data/pk
 python scripts/pk_benchmark.py run --url http://127.0.0.1:8020 --suite data/pk --out eval/pk_jev-4b.jsonl
 python scripts/pk_benchmark.py report jev-4b=eval/pk_jev-4b.jsonl
+
+# 宽选项意图分类（CLINC150 150 类 / BANKING77 77 类 / MASSIVE 59 类），三种 >16 选项策略对比
+URL=http://127.0.0.1:8020 NAME=jev-4b bash scripts/run_wide.sh
 ```
 
 完整评测流程见 [docs/evaluation.md](docs/evaluation.md)。
+
+#### 宽选项（17–256 个选项）
+
+决策头只训练过 A–P 这 16 个标签。超过 16 个选项时，`--strategy`（也可以在请求体里传 `"strategy"`）决定怎么读，三种都照搬 JEV-27B-VL 的 `serve_decide.py`：
+
+| 策略 | 做法 | 前向次数（n 个选项） | JEV-27B-VL 默认 |
+|---|---|---:|---|
+| `single`（默认） | 一次前向：A–P 用训练过的决策头，Q–Z、AA、AB… 用底座自己的 `lm_head` 行（bias 0） | 1 | Qwen 底座 |
+| `tournament` | 每组 ≤16 个分组打分，组冠军 + 最好的亚军凑 16 个进决赛，再把概率拼回全部选项；只读训练过的 A–P | ⌈n/16⌉+1 | Gemma 底座 |
+| `permute` | `single` 跑 4 种选项顺序（原序 + 3 个按问题文本固定种子的打乱）后取平均 | 4 | — |
+
+Qwen3.5 / 3.8 的词表里有 256 个满足条件的单 token 标签（A–Z 后接 AA…，跳过 BQ、CJ 这类会被切开的组合），`single` 可以直接用。本仓库 v0.1.0 只实现了 `tournament`，上面 PK 里 train-jev 4B 的 BANKING77 / MASSIVE 结果都是 tournament 读出来的，JEV-27B-VL 用的是 single。三种策略在 train-jev 4B 上的对比还没跑完，跑 `scripts/run_wide.sh` 就能得到。
 
 ### 7. 换成 Qwen3.8-27B 底座
 
@@ -252,7 +267,8 @@ GPUS=0,1,2,3,4,5,6,7 bash scripts/run_train_27b.sh                 # -> runs/jev
 ## ✅ TODO
 
 - [x] 在 Qwen3.5-4B 上复现 JEV 配方（LoRA + 24 槽位头 + KL/RPS），对齐官方 JEV-27B 的训练曲线和分布内 KL
-- [x] 温度校准、System One 兼容服务、>16 选项锦标赛
+- [x] 温度校准、System One 兼容服务、>16 选项的 single / tournament / permute 三种读法
+- [ ] 在 GPU 上跑完宽选项评测（`scripts/run_wide.sh`），按结果确定 4B 的默认策略
 - [x] 5 套评测：jev-distill（分布内/外）、Decision Index 0.3、Kev transfer-v4、零样本图像决策、13 数据集分类 PK
 - [x] 适配 Qwen3.8-27B 底座（JEV-27B 同款）：加载、初始化检查、训练、评测已跑通
 - [ ] **在当前 LoRA 配方的基础上，用 "jev-distill + 更广的公开金标数据" 做一轮全参微调**（或高 rank LoRA）。目标是补上和 4B 第一梯队差距最大的两块：Knowledge & Reasoning（0.32 vs 0.44）和 Language Understanding（0.39 vs 0.58）。榜上排名靠前的 4B 模型（d3-mini、RSI-Jev 4B）都用了全参微调。

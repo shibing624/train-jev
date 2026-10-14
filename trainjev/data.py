@@ -16,6 +16,8 @@ The prompt follows JEV-27B-VL's ``serve_decide.py`` byte for byte (template ``ba
 
 ``choice`` lines are ``"A) option"``; ``noul`` / ``score`` lines are the option strings themselves
 (``false`` / ``true`` and ``0`` .. ``5``). The decision is read at the last prompt token.
+Choices with more than 16 options continue with the tokenizer's single-token labels (``Q`` .. ``Z``, ``AA``, ...; see
+``trainjev.modeling.choice_labels``), passed in as ``labels``.
 """
 import json
 import random
@@ -23,16 +25,19 @@ import random
 LABELS = list("ABCDEFGHIJKLMNOP")
 
 
-def prompt(kind, state, question, options):
+def prompt(kind, state, question, options, labels=LABELS):
     if not isinstance(state, str):
         state = json.dumps(state, ensure_ascii=False)
-    lines = [f"{LABELS[i]}) {o}" for i, o in enumerate(options)] if kind == "choice" else list(options)
+    if kind == "choice" and len(options) > len(labels):
+        raise ValueError(f"{len(options)} options but only {len(labels)} labels")
+    lines = [f"{labels[i]}) {o}" for i, o in enumerate(options)] if kind == "choice" else list(options)
     return f"[kind] {kind}\n[state] {state}\n[question] {question}\n[options]\n" + "\n".join(lines) + "\n[decision]:"
 
 
-def encode(tok, row, max_len=2048):
+def encode(tok, row, max_len=2048, labels=LABELS):
     """-> token ids. An over-long state is cut in the middle; the question and options are never cut."""
-    ids = tok(prompt(row["kind"], row["state"], row["question"], row["options"]), add_special_tokens=False).input_ids
+    ids = tok(prompt(row["kind"], row["state"], row["question"], row["options"], labels),
+              add_special_tokens=False).input_ids
     if len(ids) <= max_len:
         return ids
     st = tok(row["state"] if isinstance(row["state"], str) else json.dumps(row["state"], ensure_ascii=False),
@@ -40,7 +45,8 @@ def encode(tok, row, max_len=2048):
     keep = max(64, len(st) - (len(ids) - max_len) - 8)
     cut = tok.decode(st[: keep // 2]) + " … " + tok.decode(st[-(keep - keep // 2):])
     r = dict(row, state=cut)
-    return tok(prompt(r["kind"], r["state"], r["question"], r["options"]), add_special_tokens=False).input_ids[:max_len]
+    return tok(prompt(r["kind"], r["state"], r["question"], r["options"], labels),
+               add_special_tokens=False).input_ids[:max_len]
 
 
 def load_rows(path, limit=None, seed=None):

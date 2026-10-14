@@ -184,3 +184,27 @@ cell is 100 rows (±~9 points at 95%), so read single scenarios with care.
 - **Reproducibility.** The code in this repository was checked against the original experiment code on the same
   inputs: identical training loss for the first 11 steps, identical evaluation logits on all 9,000 corpus rows, and
   identical server and vision outputs (|Δ| = 0).
+
+## 7. Wide-choice questions (17–256 options)
+
+How the many-class PK scenarios were read, and what is known so far (100 rows each, GPU, from the PK runs above):
+
+| scenario | options | JEV-27B-VL (`single`) | ECE | train-jev 4B (`tournament`) | ECE |
+|---|---:|---:|---:|---:|---:|
+| banking77 | 77 | 0.75 | 0.101 | 0.69 | 0.153 |
+| massive_en | 59 | 0.83 | 0.051 | 0.73 | 0.107 |
+| massive_zh | 59 | 0.77 | 0.064 | 0.66 | 0.063 |
+
+The two columns differ in both model size and read-out strategy, so this table does not isolate the strategy. JEV's
+model card reports `single` on JEV-27B-VL down to 150 options (CLINC150, all intents: 89.5% names only, 93.8% with a
+one-line description; ECE 0.079 / 0.034).
+
+Checks done for train-jev 4B:
+
+- The `tournament` path of the new server reproduces the stored GPU PK run on CPU fp32 (8/8 BANKING77 predictions,
+  max |Δp| 0.0027).
+- `single` and `tournament` disagree on 2 of the same 8 BANKING77 rows (both 7/8 correct), so the choice matters.
+- `single` takes one pass instead of ⌈n/16⌉ + 1 (6 for BANKING77, 11 for CLINC150).
+
+The full `single` / `tournament` / `permute` comparison on CLINC150 / BANKING77 / MASSIVE en (`scripts/run_wide.sh`)
+has not been run yet.

@@ -56,8 +56,8 @@ def test_report_pairs_runs(tmp_path, capsys):
 def test_one_builds_systemone_requests(monkeypatch):
     sent = []
 
-    def fake_post(url, body):
-        sent.append(body)
+    def fake_post(url, body, strategy=""):
+        sent.append(dict(body, strategy=strategy) if strategy else body)
         q = body["questions"]["q"]
         if q["type"] == "noul":
             return {"answers": {"q": {"noul": 0.8}}}, 0.01
@@ -75,3 +75,5 @@ def test_one_builds_systemone_requests(monkeypatch):
     r = pk.one("u", "m", meta, 0, {"text": "t", "label": "true"})
     assert sent[-1]["questions"]["q"] == {"type": "noul", "instructions": pk.NOUL_Q}
     assert r["pred"] == "true" and r["conf"] == pytest.approx(0.8)
+    pk.one("u", "m", meta, 0, {"text": "t", "label": "true"}, "permute")
+    assert sent[-1]["strategy"] == "permute"

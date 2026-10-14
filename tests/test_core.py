@@ -22,7 +22,7 @@ from trainjev import (
     micro_batches,
     prompt,
 )
-from trainjev.serve import build_app, map_question, tournament
+from trainjev.serve import build_app, map_question, permute, permute_orders, tournament
 
 
 # ----------------------------------------------------------------------------- prompt
@@ -38,6 +38,14 @@ def test_prompt_noul_and_score_list_raw_options():
 
 def test_prompt_serialises_structured_state():
     assert '[state] {"a": 1}' in prompt("noul", {"a": 1}, "q", ["false", "true"])
+
+
+def test_prompt_wide_choice_uses_given_labels():
+    labels = [f"L{i}" for i in range(20)]
+    p = prompt("choice", "s", "q", [f"o{i}" for i in range(20)], labels)
+    assert "\nA) o0\n" not in p and p.endswith("L18) o18\nL19) o19\n[decision]:")
+    with pytest.raises(ValueError):
+        prompt("choice", "s", "q", [f"o{i}" for i in range(17)])
 
 
 # ----------------------------------------------------------------------------- head
@@ -57,6 +65,21 @@ def test_untrained_head_equals_restricted_lm_head_readout():
         ref = torch.softmax(lm_head[ids[lo: lo + n]] @ h, -1)
         got = torch.softmax(head.logits(h, kind, n), -1)
         assert torch.allclose(ref, got, atol=1e-6)
+
+
+def test_wide_choice_appends_untrained_rows_with_zero_bias():
+    torch.manual_seed(0)
+    head = DecisionHead(torch.randn(24, 8))
+    head.bias.data.normal_()
+    h = torch.randn(8)
+    with pytest.raises(ValueError):
+        head.logits(h, "choice", 20)
+    head.wide = torch.randn(240, 8)
+    z = head.logits(h, "choice", 20)
+    assert torch.allclose(z[:16], head.logits(h, "choice", 16))
+    assert torch.allclose(z[16:], head.wide[:4] @ h)
+    assert head.logits(h, "choice", 256).shape == (256,)
+    assert "wide" not in head.state_dict()
 
 
 def test_last_hidden_picks_last_real_token_under_right_padding():
@@ -152,6 +175,38 @@ def test_tournament_is_a_distribution_and_finds_the_best_option():
     p = tournament(dist, list(scores))
     assert len(p) == n and sum(p) == pytest.approx(1.0)
     assert max(range(n), key=p.__getitem__) == 27
+    assert tournament(dist, list(scores), lambda lists: [dist(o) for o in lists]) == p
+
+
+def test_permute_undoes_each_order_and_is_deterministic():
+    n = 40
+    orders = permute_orders("q?", n)
+    assert orders == permute_orders("q?", n) and orders[0] == list(range(n))
+    assert all(sorted(o) == list(range(n)) for o in orders) and len({tuple(o) for o in orders}) == 4
+    scores = {f"opt{i}": math.exp(-abs(i - 27)) for i in range(n)}
+    seen = []
+
+    def many(lists):
+        seen.extend(lists)
+        return [[scores[o] / sum(scores.values()) for o in opts] for opts in lists]
+
+    p = permute(many, "q?", list(scores))
+    assert len(seen) == 4 and p == pytest.approx([scores[f"opt{i}"] / sum(scores.values()) for i in range(n)])
+
+
+def test_server_rejects_unknown_strategy_and_too_many_options():
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    import trainjev.serve as srv
+
+    srv.S.clear()
+    srv.S.update(args=srv.parse_args(["--strategy", "single"]))
+    c = TestClient(build_app())
+    q = {"type": "choice", "instructions": "pick", "criteria": {f"o{i}": None for i in range(20)}}
+    assert c.post("/v1/systemone", json={"state": "s", "questions": {"q": q}, "strategy": "x"}).status_code == 422
+    q["criteria"] = {f"o{i}": None for i in range(257)}
+    assert c.post("/v1/systemone", json={"state": "s", "questions": {"q": q}}).status_code == 422
 
 
 # ----------------------------------------------------------------------------- tokenizer (optional)
@@ -165,9 +220,12 @@ def test_qwen_verbalizers_and_truncation(path):
     from transformers import AutoTokenizer
 
     from trainjev import check_verbalizers, encode
+    from trainjev.modeling import choice_labels
 
     tok = AutoTokenizer.from_pretrained(path)
     check_verbalizers(tok)
+    labs, ids = choice_labels(tok)
+    assert len(labs) == len(set(ids)) == 256 and labs[16:19] == ["Q", "R", "S"] and labs[26] == "AA"
     row = {"kind": "choice", "state": "word " * 5000, "question": "Which?", "options": ["x", "y"]}
     ids = encode(tok, row, max_len=512)
     assert len(ids) <= 512

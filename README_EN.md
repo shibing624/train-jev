@@ -23,7 +23,7 @@ A decision model answers typed questions about a state:
 | type | example | output |
 |---|---|---|
 | `noul` | Is this ticket a platform-wide outage? | P(true) |
-| `choice` | Which team should handle it? (2–16 options; up to 256 via a tournament) | a probability per option |
+| `choice` | Which team should handle it? (2–256 options; the first 16 are the trained A–P, see "Wide choices") | a probability per option |
 | `score` | How urgent is it? (levels 0–5) | a 6-level distribution and expected score |
 
 train-jev covers the whole pipeline:
@@ -170,17 +170,37 @@ python scripts/pk_build.py --out data/pk
 python scripts/pk_benchmark.py run --url http://127.0.0.1:8020 --suite data/pk --out eval/pk_jev-4b.jsonl
 python scripts/pk_benchmark.py report jev-4b=eval/pk_jev-4b.jsonl
 
+# Wide-choice intent classification (CLINC150 / BANKING77 / MASSIVE), the three > 16-option strategies
+URL=http://127.0.0.1:8020 NAME=jev-4b bash scripts/run_wide.sh
+
 # Qwen3.8-27B backbone
 python scripts/check_init.py --base models/Qwen3.8-27B
 GPUS=0,1,2,3,4,5,6,7 bash scripts/run_train_27b.sh
 ```
+
+### Wide choices (17–256 options)
+
+The decision head is trained on the labels A–P only. Beyond 16 options, `--strategy` (or `"strategy"` in the request
+body) picks how the question is read; all three come from JEV-27B-VL's `serve_decide.py`:
+
+| strategy | how | passes (n options) | JEV-27B-VL default on |
+|---|---|---:|---|
+| `single` (default) | one pass: A–P from the trained head, then Q–Z, AA, AB, … from the backbone's own `lm_head` rows (zero bias) | 1 | Qwen |
+| `tournament` | groups of ≤ 16, then a final of the group winners plus the best runners-up (16 in total); only the trained A–P are ever read | ⌈n/16⌉ + 1 | Gemma |
+| `permute` | `single` over 4 option orders (given + 3 shuffles seeded by the question), averaged | 4 | — |
+
+The Qwen3.5 / 3.8 tokenizer has 256 suitable single-token labels (A–Z, then AA…, skipping pairs such as BQ or CJ
+that split), so `single` works as is. v0.1.0 only had `tournament`: the train-jev 4B BANKING77 / MASSIVE numbers in
+the PK come from it, while JEV-27B-VL's come from `single`. The three-way comparison on train-jev 4B is pending; run
+`scripts/run_wide.sh`.
 
 Decision Index, Kev transfer-v4, image and PK evaluation: [docs/evaluation.md](docs/evaluation.md).
 
 ## ✅ TODO
 
 - [x] Reproduce the JEV recipe on Qwen3.5-4B and match the official training curve and in-distribution KL
-- [x] Temperature calibration, a System One compatible server, the >16-option tournament
+- [x] Temperature calibration, a System One compatible server, `single` / `tournament` / `permute` for > 16 options
+- [ ] Run the wide-choice evaluation on GPU (`scripts/run_wide.sh`) and pick the 4B default strategy from it
 - [x] Five evaluation suites: jev-distill (in-distribution/OOD), Decision Index 0.3, Kev transfer-v4, zero-shot images, 13-dataset PK
 - [x] Qwen3.8-27B backbone (the JEV-27B base): load, init gate, training and evaluation verified
 - [ ] **On top of the current LoRA recipe, run a full fine-tune (or high-rank LoRA) on jev-distill plus broader public
