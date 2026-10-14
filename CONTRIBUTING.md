@@ -20,8 +20,8 @@ pip install -e ".[dev]"
    ```shell
    ruff check .
    python -m pytest
-   # optional, needs a Qwen3.5 tokenizer locally or on the Hub:
-   TRAINJEV_TOKENIZER=Qwen/Qwen3.5-4B python -m pytest
+   # optional, needs Qwen3.5 / 3.8 tokenizers locally or on the Hub:
+   TRAINJEV_TOKENIZER=Qwen/Qwen3.5-4B,Qwen/Qwen3.8-27B python -m pytest
    ```
 
 3. If you change anything on the numeric path (prompt, encoding, head, loss, batching, serving), state in the PR how

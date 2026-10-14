@@ -143,16 +143,18 @@ def test_tournament_is_a_distribution_and_finds_the_best_option():
 
 
 # ----------------------------------------------------------------------------- tokenizer (optional)
-TOKENIZER = os.environ.get("TRAINJEV_TOKENIZER", "")
+# comma-separated Qwen3.5 / 3.6 / 3.8 checkpoints (local paths or Hub ids)
+TOKENIZERS = [t for t in os.environ.get("TRAINJEV_TOKENIZER", "").split(",") if t]
 
 
-@pytest.mark.skipif(not TOKENIZER, reason="set TRAINJEV_TOKENIZER to a Qwen3.5 checkpoint to run")
-def test_qwen35_verbalizers_and_truncation():
+@pytest.mark.skipif(not TOKENIZERS, reason="set TRAINJEV_TOKENIZER to Qwen3.5 / 3.8 checkpoints to run")
+@pytest.mark.parametrize("path", TOKENIZERS or ["-"])
+def test_qwen_verbalizers_and_truncation(path):
     from transformers import AutoTokenizer
 
     from trainjev import check_verbalizers, encode
 
-    tok = AutoTokenizer.from_pretrained(TOKENIZER)
+    tok = AutoTokenizer.from_pretrained(path)
     check_verbalizers(tok)
     row = {"kind": "choice", "state": "word " * 5000, "question": "Which?", "options": ["x", "y"]}
     ids = encode(tok, row, max_len=512)

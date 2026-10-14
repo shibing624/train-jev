@@ -8,7 +8,7 @@
 [![Github Stars](https://img.shields.io/github/stars/shibing624/train-jev?color=yellow)](https://star-history.com/#shibing624/train-jev&Timeline)
 [![Contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![License Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![python_version](https://img.shields.io/badge/Python-3.10%2B-green.svg)](requirements.txt)
+[![python_version](https://img.shields.io/badge/Python-3.12%2B-green.svg)](requirements.txt)
 [![GitHub issues](https://img.shields.io/github/issues/shibing624/train-jev.svg)](https://github.com/shibing624/train-jev/issues)
 
 ## 📖 Introduction
@@ -44,7 +44,8 @@ train-jev covers the whole pipeline:
 
 [2026/10/14] v0.1.0: first release. Reproduces the JEV recipe on Qwen3.5-4B. Training takes 2.8 h on 3× H20.
 In-distribution KL is 0.018, essentially level with the official JEV-27B (0.017). Zero-shot image decision skill rises
-from 0.632 to 0.697. Full results are in [docs/results.md](docs/results.md).
+from 0.632 to 0.697. Qwen3.8-27B (the JEV-27B backbone) is supported, and a 13-dataset classification PK is included.
+Full results are in [docs/results.md](docs/results.md).
 
 ## 😊 Features
 
@@ -86,6 +87,11 @@ flowchart LR
 
 Details and rationale: [docs/training.md](docs/training.md).
 
+**Backbones.** Qwen3.5 / 3.6 / 3.8 share the `qwen3_5` architecture and vocabulary, so switching is just `--base`.
+Qwen3.5-4B is fully trained and evaluated. **Qwen3.8-27B**, whose config is identical to JEV-27B-VL's, is verified end
+to end: load, init gate (|Δp| = 0), training, and corpus and image evaluation. Its LoRA (108.8M) and head (123k) match
+the JEV-27B card. Full 9B and 27B runs are next.
+
 ## 📊 Results
 
 These are results for **train-jev 4B**. Within each table, every model answers the same rows.
@@ -97,6 +103,9 @@ These are results for **train-jev 4B**. Within each table, every model answers t
 | Decision Index 0.3 public index (35/37 benchmarks, 6k-row stratified sample) ↑ | 38.4 | **40.4** | 54.1 | board, same panel: vLLM-SR d3-mini 56.1, ezjev-4B 52.9, Sieve-4B 51.5 |
 | Kev `transfer-v4` (656 questions), accuracy ↑ | **0.817** | 0.779 | 0.852 | Jev 1.13: 0.857 |
 | zero-shot image decisions, 5 vision sets, mean skill ↑ | n/a | **0.697** | 0.782 | untrained Qwen3.5-4B 0.632 |
+| 13-dataset PK (1,300 rows), accuracy ↑ | 0.640 | **0.647** | 0.690 | Jev 1.13 API 0.700 |
+| 13-dataset PK, the 8 sources Kev never trained on ↑ | 0.570 | **0.603** | 0.645 | Jev 1.13 API 0.645 |
+| 13-dataset PK, ECE ↓ | 0.083 | **0.076** | 0.094 | Jev 1.13 API 0.130 |
 | single-request p50 latency (H20) | 17 ms | 43 ms | 96 ms | Jev 1.13 hosted API 370 ms incl. network |
 
 **Takeaways.**
@@ -121,7 +130,7 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-Requires `transformers>=5.17` (Qwen3.5), `peft>=0.21`, `torch>=2.6`. On CUDA, install
+Requires Python ≥ 3.12, `transformers>=5.17` (Qwen3.5 / 3.8; transformers 4.x does not know `qwen3_5`), `peft>=0.21`, `torch>=2.6`. On CUDA, install
 `flash-linear-attention==0.5.2`; without it the Gated DeltaNet layers fall back to a slow PyTorch path.
 
 | setup | peak memory / GPU | speed | one epoch |
@@ -129,8 +138,9 @@ Requires `transformers>=5.17` (Qwen3.5), `peft>=0.21`, `torch>=2.6`. On CUDA, in
 | 3× H20 96GB, `--no_gc --micro_tokens 4096` (reference) | 48.8 GB | 1.94 s/step | 2.8 h |
 | 1× H20 96GB, same flags | 48.8 GB | ~4.5 s/step | ~6.4 h |
 | less memory: keep gradient checkpointing on (default) | lower | slower | — |
+| **Qwen3.8-27B**: 1× H20 96GB, gradient checkpointing, `--micro_tokens 16384` | 75 GB | ~50 s/step | ~70 GPU-hours |
 
-Inference: the 4B bf16 weights are 9.3 GB, so it fits on a single 24 GB GPU.
+Inference: the 4B bf16 weights are 9.3 GB, so it fits on a single 24 GB GPU; 27B (text model, ~54 GB) needs an 80 GB-class GPU.
 
 ## 🚀 Quick Start
 
@@ -153,14 +163,25 @@ curl -s localhost:8020/v1/systemone -H 'content-type: application/json' -d '{
   }}'
 ```
 
-Decision Index, Kev transfer-v4 and image evaluation: [docs/evaluation.md](docs/evaluation.md).
+```shell
+# 13-dataset PK
+python scripts/pk_build.py --out data/pk
+python scripts/pk_benchmark.py run --url http://127.0.0.1:8020 --suite data/pk --out eval/pk_jev-4b.jsonl
+python scripts/pk_benchmark.py report jev-4b=eval/pk_jev-4b.jsonl
+
+# Qwen3.8-27B backbone
+python scripts/check_init.py --base models/Qwen3.8-27B
+GPUS=0,1,2,3,4,5,6,7 bash scripts/run_train_27b.sh
+```
+
+Decision Index, Kev transfer-v4, image and PK evaluation: [docs/evaluation.md](docs/evaluation.md).
 
 ## 📁 Project Structure
 
 ```
 train-jev/
 ├── trainjev/          # data / modeling / losses / metrics / train / evaluate / eval_vision / serve
-├── scripts/           # prepare_data, run_train, run_eval, run_serve, run_decision_index, check_init, di_sample, di_index
+├── scripts/           # prepare_data, run_train(_27b), run_eval, run_serve, run_decision_index, check_init, di_*, pk_*
 ├── examples/          # client.py
 ├── patches/           # small patch for the decision-index kit
 ├── docs/              # training.md, evaluation.md, results.md
@@ -171,15 +192,16 @@ train-jev/
 
 - [x] Reproduce the JEV recipe on Qwen3.5-4B and match the official training curve and in-distribution KL
 - [x] Temperature calibration, a System One compatible server, the >16-option tournament
-- [x] Four evaluation suites: jev-distill (in-distribution/OOD), Decision Index 0.3, Kev transfer-v4, zero-shot images
+- [x] Five evaluation suites: jev-distill (in-distribution/OOD), Decision Index 0.3, Kev transfer-v4, zero-shot images, 13-dataset PK
+- [x] Qwen3.8-27B backbone (the JEV-27B base): load, init gate, training and evaluation verified
 - [ ] **On top of the current LoRA recipe, run a full fine-tune (or high-rank LoRA) on jev-distill plus broader public
       gold-labelled data.** The goal is to close the two largest gaps to the leading 4B models: Knowledge & Reasoning
       (0.32 vs 0.44) and Language Understanding (0.39 vs 0.58). The top-ranked 4B models (d3-mini, RSI-Jev 4B) are
       fully fine-tuned.
 - [ ] Keep calibration when mixing in hard gold labels: they tend to make the model over-confident, so try label
       smoothing or a separate temperature for the gold part
-- [ ] Release the train-jev 4B weights on Hugging Face
-- [ ] Qwen3.5-9B / 27B backbones, with memory and speed references
+- [ ] Train Qwen3.5-9B and Qwen3.8-27B and run the full evaluation
+- [ ] Release train-jev 4B / 9B / 27B weights on Hugging Face
 - [ ] Image inputs in the `/v1/systemone` server (currently only in the evaluation script)
 
 ## ☎️ Contact
@@ -192,7 +214,7 @@ train-jev/
 
 The code is licensed under [Apache License 2.0](LICENSE). Data and base models follow their own licenses:
 [jev-distill-corpus-v3](https://huggingface.co/datasets/SargeDev/jev-distill-corpus-v3) (Apache-2.0, attribution
-requested) and [Qwen3.5](https://huggingface.co/Qwen). This project is for research use; the authors accept no
+requested) and [Qwen3.5 / Qwen3.8](https://huggingface.co/Qwen), and the public datasets used by the PK suite. This project is for research use; the authors accept no
 liability for any harm or loss caused by using it.
 
 ## 😇 Citation

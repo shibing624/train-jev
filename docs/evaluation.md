@@ -1,6 +1,6 @@
 # Evaluation
 
-Four complementary evaluations, from "did the distillation work" to "is it useful on public tasks".
+Five complementary evaluations, from "did the distillation work" to "is it useful on public tasks".
 
 | # | Evaluation | Question it answers | Tool |
 |---|---|---|---|
@@ -8,8 +8,9 @@ Four complementary evaluations, from "did the distillation work" to "is it usefu
 | 2 | Decision Index 0.3 (public) | How good is it across 35+ public benchmarks, against the board? | `decision_index` + `scripts/di_*.py` |
 | 3 | Kev `transfer-v4` | Accuracy and calibration on 656 questions from unseen sources | `kev.benchmark --remote` |
 | 4 | Decision Index vision sets | Does text-only distillation transfer to images? | `trainjev.eval_vision` |
+| 5 | 13-dataset classification PK | Accuracy / calibration on 13 public datasets (en + zh), paired against other systems | `scripts/pk_*.py` |
 
-All of them except (1) and (4) talk to a running server, so any System One compatible endpoint can be compared on the
+(2), (3) and (5) talk to a running server, so any System One compatible endpoint can be compared on the
 same rows.
 
 ## 1. jev-distill-corpus-v3
@@ -117,3 +118,26 @@ python -m trainjev.serve --proxy http://127.0.0.1:8011 --port 8021 --name JEV-27
 ```
 
 The proxy uses the same question mapping as the local backend, so both see identical prompts.
+
+## 5. 13-dataset classification PK
+
+```shell
+python scripts/pk_build.py --out data/pk          # 13 scenarios x up to 600 rows, from the HF Hub (set HF_ENDPOINT for a mirror)
+python scripts/pk_benchmark.py run --url http://127.0.0.1:8020 --suite data/pk --out eval/pk_jev-4b.jsonl
+python scripts/pk_benchmark.py run --url http://127.0.0.1:8023 --model kev-latest --suite data/pk --out eval/pk_kev-4b.jsonl
+python scripts/pk_benchmark.py report jev-4b=eval/pk_jev-4b.jsonl kev-4b=eval/pk_kev-4b.jsonl
+```
+
+`run` sends one request per row (100 rows per scenario by default, `--limit`), is resumable, and records the
+prediction, its confidence, the full distribution and the latency. `report` pairs runs on their shared rows and
+prints per-scenario accuracy, overall accuracy with a Wilson 95% CI, ECE, an exact McNemar test against the first run,
+p50 latency, per-primitive accuracy, and accuracy split by whether the source is in Kev's training data
+(`--seen`, scenarios marked `*`).
+
+Fixed questions (no per-task prompt engineering):
+
+| primitive | System One question |
+|---|---|
+| choice | `choice` over the label names (`_` → space): "Which label best describes this input?" |
+| score | `choice` over the ordered level names: "Rate this input on the given scale." |
+| boolean | `noul`: "Is the statement or property described true for this input?" |

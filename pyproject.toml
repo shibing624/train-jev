@@ -9,7 +9,7 @@ description = "Train JEV-style System 1 typed-decision models: LoRA + 24-slot de
 readme = "README_EN.md"
 license = { text = "Apache-2.0" }
 authors = [{ name = "XuMing", email = "xuming624@qq.com" }]
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 keywords = ["jev", "system-one", "decision-model", "typed-decisions", "distillation", "calibration", "qwen3.5", "lora"]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -43,7 +43,7 @@ include = ["trainjev*"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]

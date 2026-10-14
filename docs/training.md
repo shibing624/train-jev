@@ -137,11 +137,35 @@ GPU, 2.77 h for 5,123 steps. On smaller GPUs keep gradient checkpointing on (the
 Install `flash-linear-attention==0.5.2` on CUDA. Without it, transformers runs the Gated DeltaNet layers in a slow
 reference implementation. `causal-conv1d` is optional.
 
-## 9. Adapting the recipe
+## 9. Backbones
+
+All Qwen3.5 / 3.6 / 3.8 checkpoints share the `qwen3_5` architecture and the same 248k vocabulary, so the verbalizer
+ids and the prompt tokenisation are identical and the code needs no changes, only `--base`. `check_verbalizers` runs at
+start-up and refuses a tokenizer where any verbalizer is not the expected single token.
+
+| backbone | layers (full attention) | hidden | tied embeddings | LoRA params | status |
+|---|---:|---:|:---:|---:|---|
+| Qwen3.5-4B | 32 (8) | 2560 | yes | 30.5M | trained and evaluated (this release) |
+| Qwen3.5-9B | 32 (8) | 4096 | no | | planned |
+| **Qwen3.8-27B** | 64 (16) | 5120 | no | 108.8M | verified end to end: load, init gate, training, corpus and image evaluation |
+
+Qwen3.8-27B notes:
+
+- Its `config.json` is identical to autotrust/JEV-27B-VL's, and the trainable counts (LoRA 108.8M, head 123k) match the
+  JEV-27B card, so this is the exact JEV-27B setup.
+- The tokenizer differs from Qwen3.5 only by 7 added audio/TTS special tokens (ids 248070-248076); vocab, merges and
+  pre-tokenizer are identical, and 2,000 training prompts tokenise to the same ids.
+- `AutoModelForCausalLM` loads only the text model (vision tower and MTP head are skipped); the init gate gives
+  |Δp| = 0. `trainjev.eval_vision` loads the full VL model for images.
+- Requires `transformers>=5.17` and `peft>=0.21`; transformers 4.x does not know the `qwen3_5` model type.
+- Memory and speed on one H20 (96 GB), gradient checkpointing on, `--micro_tokens 16384`: 75 GB peak, ~50 s/step,
+  ~70 GPU-hours per epoch. Use `scripts/run_train_27b.sh` on 8 GPUs.
+
+## 10. Adapting the recipe
 
 | goal | change |
 |---|---|
-| different backbone size | `--base Qwen/Qwen3.5-9B` (same code; the verbalizer ids are checked at start) |
+| different backbone size | `--base Qwen/Qwen3.5-9B` or `--base Qwen/Qwen3.8-27B` (same code) |
 | add your own labelled data | convert to the row schema; `--mix mydata.jsonl:2` |
 | more capacity | `--lora_r 64` (α is set to 2r) |
 | hard labels only | one-hot `target`; expect higher confidence, so re-fit temperatures and watch ECE |

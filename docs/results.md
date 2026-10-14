@@ -118,11 +118,27 @@ into its language model, and leave the vision tower untouched (`trainjev/eval_vi
 Text-only distillation improves every vision set (+6.5 points mean skill), i.e. what the head learns about *how to
 decide* transfers across modalities. Kev drops the vision tower at load time and cannot take images.
 
-## 6. Supplementary: 13-dataset classification PK
+## 6. 13-dataset classification PK
 
-1,300 rows (100 per dataset) from 13 public classification datasets: AG News, DAIR Emotion, BANKING77, MASSIVE (en/zh),
-XNLI (en/zh), TNEWS, SST-5, Yelp stars, BoolQ, a prompt-injection set and a toxicity set. Identical prompts for every
-system. This harness is from our earlier experiments and is not part of the repository; the numbers are for context.
+1,300 rows (the first 100 of each scenario after a seed-0 shuffle) from 13 public datasets. Every system gets the same
+text (first 4,000 characters), the dataset's label names and one fixed question per primitive; there is no per-task
+prompt engineering. `scripts/pk_build.py` rebuilds the suite byte-for-byte from the Hugging Face Hub, and
+`scripts/pk_benchmark.py` runs any `/v1/systemone` endpoint and prints the paired report. Re-running train-jev 4B
+through the released script reproduces the stored probabilities (max |Δp| 6e-8).
+
+| scenario | primitive | lang | labels | source | in Kev's training sources |
+|---|---|---|---:|---|:---:|
+| ag_news | choice | en | 4 | `fancyzhx/ag_news` test | ✓ |
+| dair_emotion | choice | en | 6 | `dair-ai/emotion` test | |
+| banking77 | choice | en | 77 | `legacy-datasets/banking77` test | ✓ |
+| massive_en / massive_zh | choice | en / zh | 59 | `mteb/amazon_massive_intent` test | |
+| xnli_en / xnli_zh | choice | en / zh | 3 | `facebook/xnli` validation | |
+| tnews_zh | choice | zh | 15 | `clue/clue` tnews validation | |
+| sst5 | score | en | 5 | `SetFit/sst5` test | ✓ |
+| yelp_stars | score | en | 5 | `Yelp/yelp_review_full` test | ✓ |
+| boolq | boolean | en | 2 | `google/boolq` validation | ✓ |
+| prompt_injection | boolean | en | 2 | `deepset/prompt-injections` test | |
+| toxicity | boolean | en | 2 | `google/civil_comments` test (balanced 50/50) | |
 
 | | Jev 1.13 (API) | JEV-27B-VL | Kev-4B | **train-jev 4B** |
 |---|---:|---:|---:|---:|
@@ -133,9 +149,30 @@ system. This harness is from our earlier experiments and is not part of the repo
 | choice (n=800) | 0.739 | 0.738 | 0.685 | 0.701 |
 | score (n=200) | 0.695 | 0.655 | 0.610 | 0.575 |
 | boolean (n=300) | 0.600 | 0.587 | 0.540 | 0.550 |
+| Kev-seen sources (5 scenarios, n=500) | 0.788 | 0.762 | 0.752 | 0.718 |
+| **Kev-unseen sources (8 scenarios, n=800)** | 0.645 | 0.645 | 0.570 | **0.603** |
 
-train-jev 4B is the best calibrated of the four. It is weakest on many-class intent sets (BANKING77 0.69 vs 0.81 for
-Jev; MASSIVE en 0.73 vs 0.86).
+Per scenario:
+
+| scenario | Jev 1.13 | JEV-27B-VL | Kev-4B | train-jev 4B |
+|---|---:|---:|---:|---:|
+| ag_news ✓ | 0.86 | 0.85 | 0.87 | 0.89 |
+| banking77 ✓ | 0.81 | 0.75 | 0.81 | 0.69 |
+| boolq ✓ | 0.88 | 0.90 | 0.86 | 0.86 |
+| sst5 ✓ | 0.70 | 0.62 | 0.49 | 0.51 |
+| yelp_stars ✓ | 0.69 | 0.69 | 0.73 | 0.64 |
+| dair_emotion | 0.50 | 0.51 | 0.52 | 0.53 |
+| massive_en | 0.86 | 0.83 | 0.60 | 0.73 |
+| massive_zh | 0.77 | 0.77 | 0.59 | 0.66 |
+| prompt_injection | 0.46 | 0.44 | 0.32 | 0.34 |
+| tnews_zh | 0.48 | 0.49 | 0.50 | 0.49 |
+| toxicity | 0.46 | 0.42 | 0.44 | 0.45 |
+| xnli_en | 0.89 | 0.91 | 0.86 | 0.88 |
+| xnli_zh | 0.74 | 0.79 | 0.73 | 0.74 |
+
+On the sources Kev was not trained on, train-jev 4B leads Kev-4B by 3.3 points, and it is the best calibrated of the
+four overall. Its weak spot is many-class intent sets (BANKING77 0.69 vs 0.81 for Jev; MASSIVE en 0.73 vs 0.86). Each
+cell is 100 rows (±~9 points at 95%), so read single scenarios with care.
 
 ## 7. Notes on the protocol
 

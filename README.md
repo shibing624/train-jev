@@ -8,7 +8,7 @@
 [![Github Stars](https://img.shields.io/github/stars/shibing624/train-jev?color=yellow)](https://star-history.com/#shibing624/train-jev&Timeline)
 [![Contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![License Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![python_version](https://img.shields.io/badge/Python-3.10%2B-green.svg)](requirements.txt)
+[![python_version](https://img.shields.io/badge/Python-3.12%2B-green.svg)](requirements.txt)
 [![GitHub issues](https://img.shields.io/github/issues/shibing624/train-jev.svg)](https://github.com/shibing624/train-jev/issues)
 [![Wechat Group](https://img.shields.io/badge/wechat-group-green.svg?logo=wechat)](#-contact)
 
@@ -37,7 +37,7 @@
 
 ## 🔥 News
 
-[2026/10/14] v0.1.0 版本：首次发布。在 Qwen3.5-4B 上复现 JEV 训练配方：3×H20 训练 2.8 小时，分布内 KL 0.018，和官方 JEV-27B（0.017）基本持平；零样本图像决策 skill 从 0.632 提到 0.697。完整结果见 [docs/results.md](docs/results.md)。
+[2026/10/14] v0.1.0 版本：首次发布。在 Qwen3.5-4B 上复现 JEV 训练配方：3×H20 训练 2.8 小时，分布内 KL 0.018，和官方 JEV-27B（0.017）基本持平；零样本图像决策 skill 从 0.632 提到 0.697。同时支持 Qwen3.8-27B 底座（JEV-27B 的同款底座），并开源 13 个数据集的分类 PK 评测。完整结果见 [docs/results.md](docs/results.md)。
 
 ## 😊 Features
 
@@ -79,6 +79,19 @@ flowchart LR
 
 方法细节和每个设计选择的理由见 [docs/training.md](docs/training.md)。
 
+### 支持的底座
+
+Qwen3.5 / 3.6 / 3.8 系列共用同一套词表和 `qwen3_5` 架构（Gated DeltaNet + 全注意力混合），verbalizer token id 一致，代码不用改，换 `--base` 就行。
+
+| 底座 | 层数（其中全注意力） | hidden | LoRA 参数 | 状态 |
+|---|---:|---:|---:|---|
+| Qwen3.5-4B | 32（8） | 2560 | 30.5M | ✅ 完整训练和评测（本文结果） |
+| Qwen3.5-9B | 32（8） | 4096 | — | 🔜 下一步 |
+| **Qwen3.8-27B**（JEV-27B 底座） | 64（16） | 5120 | 108.8M | ✅ 已验证：加载、初始化检查（\|Δp\| = 0）、训练、语料和图像评测都能跑通；完整训练 🔜 |
+| Qwen3.5-2B / 27B、Qwen3.6-27B | — | — | — | 词表、verbalizer、架构检查通过 |
+
+Qwen3.8-27B 的 config 和 autotrust/JEV-27B-VL 完全一致，LoRA（108.8M）和决策头（123k）的参数量也和 JEV-27B 模型卡一致。
+
 ## 📊 Results
 
 以下都是 **train-jev 4B**（Qwen3.5-4B + JEV 配方）的结果，每个评测里所有模型用的是同一批题。
@@ -118,6 +131,19 @@ flowchart LR
 
 只用文本蒸馏，5 个视觉集都有提升，均值 +6.5 个百分点。Kev 加载时去掉了视觉塔，不能处理图像。
 
+### 13 个公开数据集的分类 PK
+
+1,300 题（13 个数据集 × 100 题），涵盖 choice / score / boolean 三种题型和中英两种语言。所有系统用同一套固定问题，不做任务级 prompt 调优。题库可以用 `scripts/pk_build.py` 从公开数据集逐字节重建。其中 5 个数据集的来源在 Kev 的训练数据里，单独列出。
+
+| | Jev 1.13（API） | JEV-27B-VL | Kev-4B | **train-jev 4B** |
+|---|---:|---:|---:|---:|
+| 准确率（1,300 题） | 0.700 | 0.690 | 0.640 | **0.647** |
+| ECE ↓ | 0.130 | 0.094 | 0.083 | **0.076** |
+| Kev 训练过的来源（5 个，500 题） | 0.788 | 0.762 | 0.752 | 0.718 |
+| **Kev 没见过的来源（8 个，800 题）** | 0.645 | 0.645 | 0.570 | **0.603** |
+
+只看 Kev 没见过的 8 个数据集，train-jev 4B 比 Kev-4B 高 3.3 个百分点，校准也是四个模型里最好的（ECE 0.076）。
+
 ### 结论
 
 1. **配方复现正确**：分布内 KL（0.018）、验证集曲线、校准温度（都接近 1.0）都和官方 27B 的报告吻合。
@@ -135,7 +161,7 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-- 需要 `transformers>=5.17`（支持 Qwen3.5）、`peft>=0.21`、`torch>=2.6`。
+- Python ≥ 3.12；需要 `transformers>=5.17`（支持 Qwen3.5/3.8，`transformers` 4.x 不认识 `qwen3_5` 架构）、`peft>=0.21`、`torch>=2.6`。
 - CUDA 上强烈建议装 `flash-linear-attention==0.5.2`，否则 Gated DeltaNet 层会退回到很慢的 PyTorch 实现。
 
 #### Hardware Requirement (显存/VRAM)
@@ -145,8 +171,9 @@ pip install -e .
 | 3× H20 96GB，`--no_gc --micro_tokens 4096`（参考配置） | 48.8 GB | 1.94 s/步 | 2.8 小时 |
 | 1× H20 96GB，`--no_gc --micro_tokens 4096` | 48.8 GB | 4.5 s/步 | 约 6.4 小时 |
 | 显存不够时：开 gradient checkpointing（默认，去掉 `--no_gc`） | 更低 | 更慢 | — |
+| **Qwen3.8-27B**：1× H20 96GB，gradient checkpointing，`--micro_tokens 16384` | 75 GB | 约 50 s/步 | 约 70 GPU 小时 |
 
-推理：4B 模型 bf16 权重约 9.3 GB，单张 24 GB 显卡即可部署。
+推理：4B 模型 bf16 权重约 9.3 GB，单张 24 GB 显卡即可部署；27B 约 54 GB（文本塔），需要 80 GB 级显卡。
 
 ## 🚀 Quick Start
 
@@ -206,9 +233,22 @@ URL=http://127.0.0.1:8020 NAME=jev-4b bash scripts/run_decision_index.sh
 # 零样本图像决策
 python -m trainjev.eval_vision --base models/Qwen3.5-4B --adapter runs/jev-4b/best \
     --di_root third_party/decision-index --out eval/vision-jev-4b
+
+# 13 个公开数据集的分类 PK（1,300 题）
+python scripts/pk_build.py --out data/pk
+python scripts/pk_benchmark.py run --url http://127.0.0.1:8020 --suite data/pk --out eval/pk_jev-4b.jsonl
+python scripts/pk_benchmark.py report jev-4b=eval/pk_jev-4b.jsonl
 ```
 
 完整评测流程见 [docs/evaluation.md](docs/evaluation.md)。
+
+### 7. 换成 Qwen3.8-27B 底座
+
+```shell
+huggingface-cli download Qwen/Qwen3.8-27B --local-dir models/Qwen3.8-27B
+python scripts/check_init.py --base models/Qwen3.8-27B             # PASS
+GPUS=0,1,2,3,4,5,6,7 bash scripts/run_train_27b.sh                 # -> runs/jev-27b/best
+```
 
 ## 📁 Project Structure
 
@@ -224,10 +264,12 @@ train-jev/
 │   ├── eval_vision.py         # 零样本图像决策评测
 │   └── serve.py               # /v1/systemone + /v1/decide 服务（含 >16 选项锦标赛）
 ├── scripts/                   # 一键脚本
-│   ├── prepare_data.sh / run_train.sh / run_eval.sh / run_serve.sh / run_decision_index.sh
+│   ├── prepare_data.sh / run_train.sh / run_train_27b.sh / run_eval.sh / run_serve.sh / run_decision_index.sh
 │   ├── check_init.py          # 训练前检查：未训练的头 == 底座受限读出
 │   ├── di_sample.py           # Decision Index 分层抽样 + 对应的评分套件
 │   ├── di_index.py            # 去掉部分基准后重算 index（可附带榜单参考模型）
+│   ├── pk_build.py            # 从公开数据集构建 13 场景 PK 题库
+│   ├── pk_benchmark.py        # PK 评测：跑任意 /v1/systemone 服务 + 配对对比报告
 │   └── compare_corpus.py      # 多个评测 summary 并排对比
 ├── examples/client.py         # 最小客户端示例
 ├── patches/                   # 第三方评测工具的小补丁
@@ -239,11 +281,12 @@ train-jev/
 
 - [x] 在 Qwen3.5-4B 上复现 JEV 配方（LoRA + 24 槽位头 + KL/RPS），对齐官方 JEV-27B 的训练曲线和分布内 KL
 - [x] 温度校准、System One 兼容服务、>16 选项锦标赛
-- [x] 4 套评测：jev-distill（分布内/外）、Decision Index 0.3、Kev transfer-v4、零样本图像决策
+- [x] 5 套评测：jev-distill（分布内/外）、Decision Index 0.3、Kev transfer-v4、零样本图像决策、13 数据集分类 PK
+- [x] 适配 Qwen3.8-27B 底座（JEV-27B 同款）：加载、初始化检查、训练、评测已跑通
 - [ ] **在当前 LoRA 配方的基础上，用 "jev-distill + 更广的公开金标数据" 做一轮全参微调**（或高 rank LoRA）。目标是补上和 4B 第一梯队差距最大的两块：Knowledge & Reasoning（0.32 vs 0.44）和 Language Understanding（0.39 vs 0.58）。榜上排名靠前的 4B 模型（d3-mini、RSI-Jev 4B）都用了全参微调。
 - [ ] 混入金标数据时保住校准：硬标签容易让模型过度自信，计划试 label smoothing，或对金标部分单独拟合温度
-- [ ] 发布 train-jev 4B 权重到 Hugging Face
-- [ ] 支持 Qwen3.5-9B / 27B 底座，并给出显存与速度参考
+- [ ] 训练 Qwen3.5-9B 和 Qwen3.8-27B 两个尺寸，跑全套评测
+- [ ] 发布 train-jev 4B / 9B / 27B 权重到 Hugging Face
 - [ ] 图像决策加入 `/v1/systemone` 服务（目前只在评测脚本中支持）
 
 ## ☎️ Contact
@@ -256,7 +299,7 @@ train-jev/
 
 本项目仅可应用于研究目的，项目开发者不承担任何因使用本项目（包含但不限于数据、模型、代码等）导致的危害或损失。
 
-train-jev 项目代码的授权协议为 [The Apache License 2.0](LICENSE)，代码可免费用做商业用途。训练数据和底座模型请遵守各自的协议：[jev-distill-corpus-v3](https://huggingface.co/datasets/SargeDev/jev-distill-corpus-v3)（Apache-2.0，要求注明来源）、[Qwen3.5](https://huggingface.co/Qwen)。请在产品说明中附加 train-jev 的链接和授权协议。
+train-jev 项目代码的授权协议为 [The Apache License 2.0](LICENSE)，代码可免费用做商业用途。训练数据、评测数据和底座模型请遵守各自的协议：[jev-distill-corpus-v3](https://huggingface.co/datasets/SargeDev/jev-distill-corpus-v3)（Apache-2.0，要求注明来源）、[Qwen3.5 / Qwen3.8](https://huggingface.co/Qwen)（Apache-2.0）、PK 评测用到的各公开数据集。请在产品说明中附加 train-jev 的链接和授权协议。
 
 ## 😇 Citation
 
