@@ -1,0 +1,26 @@
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.venv/
+
+# data, models, outputs
+data/
+models/
+runs/
+eval/
+logs/
+third_party/
+wandb/
+*.safetensors
+*.pt
+*.jsonl.gz
+
+# editors
+.idea/
+.vscode/
+.DS_Store

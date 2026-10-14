@@ -1,0 +1,16 @@
+torch>=2.6
+transformers>=5.17,<6
+peft>=0.21
+accelerate>=1.0
+numpy
+scikit-learn
+# Triton kernels for Qwen3.5's Gated DeltaNet layers (strongly recommended on CUDA; without it transformers falls
+# back to a slow PyTorch path). The reference run used 0.5.2.
+flash-linear-attention==0.5.2
+# serving / evaluation clients
+fastapi
+uvicorn
+httpx
+# image decisions (trainjev.eval_vision)
+pillow
+torchvision
