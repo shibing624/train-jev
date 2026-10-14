@@ -1,46 +1,3 @@
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "train-jev"
-dynamic = ["version"]
-description = "Train JEV-style System 1 typed-decision models: LoRA + 24-slot decision head on Qwen3.5"
-readme = "README_EN.md"
-license = { text = "Apache-2.0" }
-authors = [{ name = "XuMing", email = "xuming624@qq.com" }]
-requires-python = ">=3.12"
-keywords = ["jev", "system-one", "decision-model", "typed-decisions", "distillation", "calibration", "qwen3.5", "lora"]
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: Apache Software License",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-]
-dependencies = [
-    "torch>=2.6",
-    "transformers>=5.17,<6",
-    "peft>=0.21",
-    "accelerate>=1.0",
-    "numpy",
-    "scikit-learn",
-]
-
-[project.optional-dependencies]
-fast = ["flash-linear-attention==0.5.2"]
-serve = ["fastapi", "uvicorn", "httpx"]
-vision = ["pillow", "torchvision"]
-dev = ["pytest", "ruff"]
-
-[project.urls]
-Homepage = "https://github.com/shibing624/train-jev"
-Issues = "https://github.com/shibing624/train-jev/issues"
-
-[tool.setuptools.dynamic]
-version = { attr = "trainjev.__version__" }
-
-[tool.setuptools.packages.find]
-include = ["trainjev*"]
-
 [tool.ruff]
 line-length = 120
 target-version = "py312"
@@ -51,3 +8,4 @@ ignore = ["E731", "E741"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]

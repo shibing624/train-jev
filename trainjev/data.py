@@ -1,4 +1,9 @@
-"""Prompt template, tokenisation and batching.
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: prompt 模板、分词和按长度组 batch。
+
+Prompt template, tokenisation and batching.
 
 The prompt follows JEV-27B-VL's ``serve_decide.py`` byte for byte (template ``bare-v1``)::
 

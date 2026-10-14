@@ -1,4 +1,9 @@
-"""Sanity gate before training: the untrained head must equal the base model's restricted next-token readout.
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: 训练前检查：未训练的决策头必须等于底座在 verbalizer 上的 next-token 读出。
+
+Sanity gate before training: the untrained head must equal the base model's restricted next-token readout.
 
 At initialisation the 24 head rows are copies of lm_head's verbalizer rows, so softmax over the head slots must match
 softmax over lm_head logits restricted to the same tokens (|dp| < 1e-5 in fp32). Then prints the untrained reference
@@ -8,12 +13,25 @@ metrics on a validation subset.
 """
 import argparse
 import json
+import sys
 import time
+from pathlib import Path
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from trainjev import RANGES, VERBALIZER_IDS, DecisionHead, check_verbalizers, encode, last_hidden, load_rows, metrics
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from trainjev import (  # noqa: E402
+    RANGES,
+    VERBALIZER_IDS,
+    DecisionHead,
+    check_verbalizers,
+    encode,
+    last_hidden,
+    load_rows,
+    metrics,
+)
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--base", default="Qwen/Qwen3.5-4B")

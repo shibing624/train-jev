@@ -127,8 +127,9 @@ Per-area Decision Index scores, the PK results, the full training curve and prot
 git clone https://github.com/shibing624/train-jev
 cd train-jev
 pip install -r requirements.txt
-pip install -e .
 ```
+
+This is a training repo, not a published Python package. From the repository root, run `python -m trainjev.train`.
 
 Requires Python ≥ 3.12, `transformers>=5.17` (Qwen3.5 / 3.8; transformers 4.x does not know `qwen3_5`), `peft>=0.21`, `torch>=2.6`. On CUDA, install
 `flash-linear-attention==0.5.2`; without it the Gated DeltaNet layers fall back to a slow PyTorch path.

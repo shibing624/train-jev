@@ -1,20 +1,21 @@
-# Changelog
+# 更新日志
+
+## [Unreleased]
+
+#### fixes
+
+- 仓库不再作为 Python 库打包：去掉 `pyproject.toml` 里的 setuptools 配置，不再支持 `pip install -e .` 以及 `.[serve]`、`.[dev]` 这些 extras。依赖只通过 `requirements.txt` 安装，在仓库根目录用 `python -m trainjev.train` 训练。
 
 ## v0.1.0 (2026-10-14)
 
-First release.
+首次发布。
 
-- JEV System 1 recipe on Qwen3.5: LoRA r16 on all Gated DeltaNet / attention / MLP projections, 24-slot fp32 decision
-  head initialised from `lm_head`, KL + 0.5·RPS loss, 30% option permutation, kind-stratified 128-row batches,
-  multi-GPU DDP (`trainjev.train`).
-- Per-kind temperature calibration and corpus evaluation (`trainjev.evaluate`).
-- TypeSafe System One compatible server with `/v1/systemone`, `/v1/decide`, the >16-option tournament and a proxy mode
-  for JEV-27B-VL (`trainjev.serve`).
-- Zero-shot image decision evaluation on the Decision Index vision sets (`trainjev.eval_vision`).
-- Decision Index 0.3 helpers: stratified sample + sample-only suite (`scripts/di_sample.py`), panel re-scoring with
-  dropped benchmarks (`scripts/di_index.py`).
-- 13-dataset classification PK: byte-identical suite builder from the HF Hub (`scripts/pk_build.py`) and a resumable
-  runner with a paired report (`scripts/pk_benchmark.py`).
-- Qwen3.8-27B backbone verified end to end; `scripts/run_train_27b.sh`.
-- Python >= 3.12.
-- Results for Qwen3.5-4B: [docs/results.md](docs/results.md).
+- 在 Qwen3.5 上复现 JEV System 1 配方：全部 Gated DeltaNet / attention / MLP 投影加 LoRA r16，24 槽位 fp32 决策头从 `lm_head` 初始化，损失为 KL + 0.5·RPS，30% 选项置换，按类型分层的 128 行 batch，多卡 DDP（`trainjev.train`）。
+- 按问题类型做温度校准，并在语料上评测（`trainjev.evaluate`）。
+- 兼容 TypeSafe System One 的服务，提供 `/v1/systemone`、`/v1/decide`、超过 16 个选项的锦标赛，以及 JEV-27B-VL 的代理模式（`trainjev.serve`）。
+- Decision Index 视觉集上的零样本图像决策评测（`trainjev.eval_vision`）。
+- Decision Index 0.3 辅助脚本：分层抽样和只含样本的 suite（`scripts/di_sample.py`），丢掉部分基准后重算榜单（`scripts/di_index.py`）。
+- 13 个数据集的分类 PK：从 HF Hub 构建逐字节一致的 suite（`scripts/pk_build.py`），以及可断点续跑、带配对报告的评测（`scripts/pk_benchmark.py`）。
+- Qwen3.8-27B 底座已端到端跑通；脚本 `scripts/run_train_27b.sh`。
+- Python >= 3.12。
+- Qwen3.5-4B 的结果见 [docs/results.md](docs/results.md)。

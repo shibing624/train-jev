@@ -9,7 +9,7 @@ welcome.
 git clone https://github.com/shibing624/train-jev
 cd train-jev
 pip install -r requirements.txt
-pip install -e ".[dev]"
+pip install pytest ruff
 ```
 
 ## Before opening a PR

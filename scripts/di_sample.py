@@ -1,4 +1,9 @@
-"""Build a stratified Decision Index sample and a matching scoring suite.
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: 抽一份分层的 Decision Index 样本，并生成对应的评分 suite。
+
+Build a stratified Decision Index sample and a matching scoring suite.
 
 The full Decision Index 0.3 public suite is ~140k requests. For fast iteration we score every model on the same
 stratified sample (round-robin over benchmarks, whole groups, fixed seed), and build a sample-only suite directory so

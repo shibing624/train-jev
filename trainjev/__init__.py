@@ -1,4 +1,8 @@
-"""train-jev: train JEV-style System 1 typed-decision models (LoRA + 24-slot decision head) on Qwen3.5."""
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: 在 Qwen3.5 上训练 JEV 风格的 System 1 决策模型（LoRA + 24 槽位决策头）。
+"""
 
 __version__ = "0.1.0"
 

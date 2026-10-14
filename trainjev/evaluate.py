@@ -1,4 +1,9 @@
-"""Evaluate a System 1 model on jev-distill-corpus-v3 splits and fit per-kind temperatures.
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: 在蒸馏语料上评测，并按问题类型拟合温度。
+
+Evaluate a System 1 model on jev-distill-corpus-v3 splits and fit per-kind temperatures.
 
 Backends (same rows, same metrics for each):
   --adapter DIR        a train-jev checkpoint (LoRA + head.pt), local GPU

@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: prompt、决策头、损失、指标和服务映射的 CPU 测试。
+"""
 import math
 import os
 

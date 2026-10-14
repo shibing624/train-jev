@@ -1,4 +1,9 @@
-"""Build the 13-dataset classification PK suite from public Hugging Face datasets.
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: 从 Hugging Face 公开数据集构建 13 个分类 PK 场景。
+
+Build the 13-dataset classification PK suite from public Hugging Face datasets.
 
 13 scenarios that span all three primitives and two languages, each with an independent published reference:
 

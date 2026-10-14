@@ -1,4 +1,9 @@
-"""Side-by-side table of ``trainjev.evaluate`` summaries.
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: 把 trainjev.evaluate 的 summary 排成对照表。
+
+Side-by-side table of ``trainjev.evaluate`` summaries.
 
     python scripts/compare_corpus.py base=eval/base/summary.json jev-4b=eval/jev-4b/summary.json
 """

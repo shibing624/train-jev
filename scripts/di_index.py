@@ -1,4 +1,9 @@
-"""Decision Index 0.3 public-index math on a benchmark panel with some benchmarks dropped.
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: 丢掉部分基准后，重算 Decision Index 0.3 公开指数。
+
+Decision Index 0.3 public-index math on a benchmark panel with some benchmarks dropped.
 
 Two benchmarks of the 0.3 public suite could not be rebuilt in our environment: HLE (catalog id 45, gated on the HF
 Hub) and HoVer (61, a 2 GB Wikipedia dump). This script removes them from their areas (gold weights and fixed area

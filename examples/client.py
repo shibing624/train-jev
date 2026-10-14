@@ -1,4 +1,9 @@
-"""Minimal client for a train-jev server (or any TypeSafe System One endpoint).
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: 调用 train-jev 或任意 TypeSafe System One 服务的最小客户端。
+
+Minimal client for a train-jev server (or any TypeSafe System One endpoint).
 
     python -m trainjev.serve --base Qwen/Qwen3.5-4B --adapter runs/jev-4b/best --port 8020
     python examples/client.py --url http://127.0.0.1:8020

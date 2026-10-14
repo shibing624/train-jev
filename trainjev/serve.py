@@ -1,4 +1,9 @@
-"""TypeSafe System One compatible server (``POST /v1/systemone``) plus a ``serve_decide.py``-compatible ``/v1/decide``.
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: 兼容 TypeSafe System One 的服务，同时提供 /v1/decide。
+
+TypeSafe System One compatible server (``POST /v1/systemone``) plus a ``serve_decide.py``-compatible ``/v1/decide``.
 
 Backends
   --adapter DIR   a train-jev checkpoint (LoRA merged in memory + 24-slot head), HF transformers, bf16

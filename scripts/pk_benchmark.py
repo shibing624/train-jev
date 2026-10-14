@@ -1,4 +1,9 @@
-"""Run the 13-dataset PK suite against a System One endpoint and/or score saved runs.
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: 用 13 个数据集的 PK 去打 System One 服务，并比较已保存的结果。
+
+Run the 13-dataset PK suite against a System One endpoint and/or score saved runs.
 
 Every system gets the same input: the text (first 4,000 characters), the dataset's label set and one fixed question
 per primitive (no per-task prompt engineering):

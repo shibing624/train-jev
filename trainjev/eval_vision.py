@@ -1,4 +1,9 @@
-"""Zero-shot image decisions on the Decision Index public vision sets.
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: 在 Decision Index 视觉集上做零样本图像决策评测。
+
+Zero-shot image decisions on the Decision Index public vision sets.
 
 The adapter and head are trained on text only; the Qwen3.5 vision tower is untouched. This script loads the full VL
 model, merges the LoRA into its language model, and reads the decision head at the last prompt token of

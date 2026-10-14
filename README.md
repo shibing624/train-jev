@@ -158,9 +158,9 @@ Decision Index 各领域分数、PK 评测、各 checkpoint 的训练曲线，�
 git clone https://github.com/shibing624/train-jev
 cd train-jev
 pip install -r requirements.txt
-pip install -e .
 ```
 
+- 这是训练仓库，不发布成 Python 库。依赖装好后，在仓库根目录运行，例如 `python -m trainjev.train`。
 - Python ≥ 3.12；需要 `transformers>=5.17`（支持 Qwen3.5/3.8，`transformers` 4.x 不认识 `qwen3_5` 架构）、`peft>=0.21`、`torch>=2.6`。
 - CUDA 上强烈建议装 `flash-linear-attention==0.5.2`，否则 Gated DeltaNet 层会退回到很慢的 PyTorch 实现。
 

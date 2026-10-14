@@ -1,4 +1,8 @@
-"""Distribution-level and decision-level metrics against soft targets."""
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: 对着软标签算分布指标和决策指标。
+"""
 import numpy as np
 
 

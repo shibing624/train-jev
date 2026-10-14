@@ -1,4 +1,8 @@
-"""Training objective: KL(teacher || model) over the question's options, plus an ordinal RPS term for ``score``."""
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: 训练损失：选项上的 KL(teacher || model)，score 再加序数 RPS。
+"""
 import torch
 import torch.nn.functional as F
 

@@ -1,4 +1,9 @@
-"""Decision head and backbone readout.
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: 24 槽位决策头，以及从底座 lm_head 读出 verbalizer 行做初始化。
+
+Decision head and backbone readout.
 
 A JEV System 1 model is a causal LM backbone (here Qwen3.5) with a LoRA adapter and a 24-slot fp32 decision head
 that replaces ``lm_head`` on the decision path:

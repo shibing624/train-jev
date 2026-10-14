@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: 13 数据集 PK 的置信区间和配对比较测试。
+"""
 import importlib.util
 import json
 import math

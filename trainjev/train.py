@@ -1,4 +1,9 @@
-"""JEV-recipe System 1 trainer: LoRA + 24-slot decision head on a Qwen3.5 backbone, DDP over N GPUs.
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: JEV System 1 训练：Qwen3.5 上的 LoRA + 24 槽位决策头，多卡 DDP。
+
+JEV-recipe System 1 trainer: LoRA + 24-slot decision head on a Qwen3.5 backbone, DDP over N GPUs.
 
 Recipe (autotrust/JEV-27B model card, "Training details"):
   * LoRA r16 / alpha 32 / dropout 0.05 on all 10 projection types of both layer kinds
