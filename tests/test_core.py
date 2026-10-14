@@ -22,7 +22,7 @@ from trainjev import (
     micro_batches,
     prompt,
 )
-from trainjev.serve import map_question, tournament
+from trainjev.serve import build_app, map_question, tournament
 
 
 # ----------------------------------------------------------------------------- prompt
@@ -91,6 +91,13 @@ def test_rps_only_applies_to_score():
 
 
 # ----------------------------------------------------------------------------- data utils
+def test_server_exposes_only_systemone_and_health():
+    pytest.importorskip("fastapi")
+    routes = {(r.path, m) for r in build_app().routes if hasattr(r, "methods") for m in r.methods}
+    api = {x for x in routes if not x[0].startswith(("/docs", "/redoc", "/openapi"))}
+    assert api == {("/v1/systemone", "POST"), ("/health", "GET")}
+
+
 def test_micro_batches_respect_token_budget():
     items = [(n, i) for i, n in enumerate([5, 100, 30, 30, 60, 7, 1])]
     lens = dict((i, n) for n, i in items)

@@ -8,7 +8,7 @@ Evaluate a System 1 model on jev-distill-corpus-v3 splits and fit per-kind tempe
 Backends (same rows, same metrics for each):
   --adapter DIR        a train-jev checkpoint (LoRA + head.pt), local GPU
   --base_only          the untrained reference: base model + head initialised from lm_head
-  --decide_url URL     a JEV-27B-VL ``serve_decide.py`` /v1/decide endpoint
+  --decide_url URL     JEV-27B-VL's own ``serve_decide.py`` server (its native /v1/decide route), for comparison
   --systemone_url URL  any TypeSafe-compatible /v1/systemone endpoint (e.g. a Kev server)
 
 ``--fit_calibration`` fits a per-kind temperature on the calibration split (placeholder rows excluded) and, for
@@ -127,7 +127,7 @@ def main(argv=None):
     ap.add_argument("--base", default="Qwen/Qwen3.5-4B")
     ap.add_argument("--adapter", default="")
     ap.add_argument("--base_only", action="store_true")
-    ap.add_argument("--decide_url", default="")
+    ap.add_argument("--decide_url", default="", help="JEV-27B-VL serve_decide.py server, for comparison")
     ap.add_argument("--systemone_url", default="")
     ap.add_argument("--model_name", default="kev-latest", help="'model' field sent to --systemone_url")
     ap.add_argument("--data", default="data/jev-distill-corpus-v3")

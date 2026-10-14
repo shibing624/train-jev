@@ -33,8 +33,8 @@ train-jev covers the whole pipeline:
 - **Calibration**: per-kind temperature fitting, so the probabilities can be used directly as confidence.
 - **Evaluation**: four suites covering in-distribution distillation, OOD transfer, a public benchmark
   ([Decision Index](https://github.com/apolinario/decision-index) 0.3), and zero-shot image decisions.
-- **Serving**: a TypeSafe [System One API](https://docs.typesafe.ai/api) compatible `POST /v1/systemone`, plus JEV's
-  `/v1/decide`. Existing SDKs and harnesses work unchanged.
+- **Serving**: a TypeSafe [System One API](https://docs.typesafe.ai/api) compatible `POST /v1/systemone`; existing
+  SDKs and harnesses work unchanged. `--proxy` puts JEV-27B-VL behind the same API for side-by-side comparison.
 - **Image decisions**: training is text-only and Qwen3.5's vision encoder is left untouched, so the trained model can
   make decisions about images zero-shot.
 

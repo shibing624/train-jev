@@ -29,7 +29,7 @@
 - **训练**：`torchrun` 多卡 DDP，单个文件实现完整的 JEV 配方（LoRA r16 + fp32 决策头 + KL/RPS 损失 + 选项置换增强 + 按类型分层采样）。
 - **校准**：按问题类型拟合温度，输出的概率可以直接当置信度用。
 - **评测**：4 套评测，覆盖分布内蒸馏、分布外泛化、公开基准（[Decision Index](https://github.com/apolinario/decision-index) 0.3）和零样本看图决策。
-- **部署**：兼容 TypeSafe [System One API](https://docs.typesafe.ai/api) 的 `POST /v1/systemone` 服务，也兼容 JEV 的 `/v1/decide`，现有 SDK 和评测工具不用改就能接上。
+- **部署**：兼容 TypeSafe [System One API](https://docs.typesafe.ai/api) 的 `POST /v1/systemone` 服务，现有 SDK 和评测工具不用改就能接上；`--proxy` 模式可以把 JEV-27B-VL 挂到同一个 API 后面做对比。
 - **看图决策**：只用文本训练，Qwen3.5 自带的视觉编码器不动，训完的模型可以零样本对图像做决策。
 
 > 本项目是独立的算法研究复现，与 TypeSafe AI、autotrust 均无关联。

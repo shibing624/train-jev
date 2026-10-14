@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 """
 @author: XuMing(xuming624@qq.com)
-@description: 兼容 TypeSafe System One 的服务，同时提供 /v1/decide。
+@description: 兼容 TypeSafe System One API（/v1/systemone）的推理服务。
 
-TypeSafe System One compatible server (``POST /v1/systemone``) plus a ``serve_decide.py``-compatible ``/v1/decide``.
+TypeSafe System One compatible server: ``POST /v1/systemone`` (and ``GET /health``).
 
 Backends
   --adapter DIR   a train-jev checkpoint (LoRA merged in memory + 24-slot head), HF transformers, bf16
   --base_only     the untrained reference (head initialised from lm_head)
-  --proxy URL     forward to a JEV-27B-VL ``serve_decide.py`` /v1/decide endpoint (one question per call)
+  --proxy URL     put JEV-27B-VL behind the same API, for side-by-side comparison: each question is forwarded to its
+                  ``serve_decide.py`` server (native ``/v1/decide`` route, one question per call)
 
 Request mapping, identical for every backend and identical to what the model saw in training:
   noul   -> kind noul,   options [false, true]                       answer p(true)
@@ -225,36 +226,6 @@ def build_app():
     @app.get("/health")
     async def health():
         return {"ok": True, "model": S["args"].name}
-
-    @app.post("/v1/decide")
-    async def decide(req: Request):
-        """``serve_decide.py``-compatible System 1 route: ``{kind, state, question, options}`` -> probabilities."""
-        b = await req.json()
-        t0 = time.perf_counter()
-        kind = b["kind"]
-        opts = b.get("options") or (["false", "true"] if kind == "noul" else [str(i) for i in range(6)])
-        if S["args"].proxy:
-            return JSONResponse({"error": "use the upstream /v1/decide"}, status_code=400)
-        try:
-            st = _state_text(b["state"])
-        except ValueError as e:
-            return JSONResponse({"error": str(e)}, status_code=422)
-        async with S["lock"]:
-            if kind == "choice" and len(opts) > 16:
-                cnt = [0]
-
-                def d(o):
-                    pr, n = _hf_dist("choice", st, b["question"], o)
-                    cnt[0] += n
-                    return pr
-
-                p, n = tournament(d, opts), cnt[0]
-            else:
-                p, n = _hf_dist(kind, st, b["question"], opts)
-        k = max(range(len(p)), key=p.__getitem__)
-        return {"kind": kind, "options": opts, "probabilities": p, "choice_index": k, "choice": opts[k],
-                "adaptation": "native" if kind != "choice" or len(opts) <= 16 else "tournament",
-                "model": S["args"].name, "usage": {"prompt_tokens": n}, "elapsed_seconds": time.perf_counter() - t0}
 
     return app
 

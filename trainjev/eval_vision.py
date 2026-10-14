@@ -35,7 +35,7 @@ def main(argv=None):
     ap.add_argument("--base", default="Qwen/Qwen3.5-4B")
     ap.add_argument("--adapter", default="")
     ap.add_argument("--base_only", action="store_true")
-    ap.add_argument("--decide_url", default="", help="a JEV-27B-VL serve_decide.py /v1/decide endpoint")
+    ap.add_argument("--decide_url", default="", help="JEV-27B-VL serve_decide.py server, for comparison")
     ap.add_argument("--di_root", required=True, help="decision-index checkout with work/vision rebuilt")
     ap.add_argument("--sets", default=DEFAULT_SETS)
     ap.add_argument("--per_set", type=int, default=300, help="first N items per set by sha256(id)")

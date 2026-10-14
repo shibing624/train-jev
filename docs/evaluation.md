@@ -20,7 +20,7 @@ same rows.
 python -m trainjev.evaluate --base models/Qwen3.5-4B --adapter runs/jev-4b/best --fit_calibration --out eval/jev-4b
 # untrained reference
 python -m trainjev.evaluate --base models/Qwen3.5-4B --base_only --out eval/base
-# any /v1/systemone server (e.g. Kev) or a JEV serve_decide.py /v1/decide endpoint
+# any /v1/systemone server (e.g. Kev); --decide_url talks to JEV-27B-VL's own serve_decide.py server, for comparison
 python -m trainjev.evaluate --systemone_url http://127.0.0.1:8023 --workers 4 --out eval/kev-4b
 python -m trainjev.evaluate --decide_url http://127.0.0.1:8011 --out eval/jev-27b-vl
 
@@ -110,8 +110,10 @@ skill `(acc - chance) / (1 - chance)`.
 
 ## Comparing against JEV-27B-VL
 
-JEV-27B-VL ships its own vLLM server (`serve_decide.py`, `/v1/decide`). To put it behind the System One API used by
-(2) and (3), run this repository's server in proxy mode:
+JEV-27B-VL ships its own vLLM server (`serve_decide.py`), whose native route is `/v1/decide` (one question per call,
+raw `kind / question / options`). The `--decide_url` options of `trainjev.evaluate` and `trainjev.eval_vision` are
+clients of that route; they exist only to evaluate JEV-27B-VL on the same rows. To put it behind the System One API
+used by (2), (3) and (5), run this repository's server in proxy mode:
 
 ```shell
 python -m trainjev.serve --proxy http://127.0.0.1:8011 --port 8021 --name JEV-27B-VL
