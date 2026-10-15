@@ -90,19 +90,14 @@ def main(argv=None):
         from transformers import AutoModelForImageTextToText, AutoProcessor
 
         from trainjev.data import LABELS
-        from trainjev.modeling import VERBALIZER_IDS, DecisionHead, load_temperatures
+        from trainjev.modeling import VERBALIZER_IDS, DecisionHead, load_temperatures, load_trained
 
         proc = AutoProcessor.from_pretrained(a.base)
         m = AutoModelForImageTextToText.from_pretrained(a.base, dtype=torch.bfloat16)
         head = DecisionHead(m.get_output_embeddings().weight[VERBALIZER_IDS])
         adapter = "" if a.base_only else a.adapter
         if adapter:
-            from peft import PeftModel
-
-            m.model.language_model = PeftModel.from_pretrained(m.model.language_model, adapter).merge_and_unload()
-            sd = torch.load(os.path.join(adapter, "head.pt"), map_location="cpu")
-            head.weight.data.copy_(sd["weight"])
-            head.bias.data.copy_(sd["bias"])
+            m.model.language_model = load_trained(m.model.language_model, head, adapter)
         temps = load_temperatures(os.path.join(adapter, "calibration.json") if adapter else "")
         m.cuda().eval()
         head.cuda()

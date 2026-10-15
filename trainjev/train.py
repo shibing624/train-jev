@@ -22,6 +22,13 @@ Usage::
 
 ``--mix`` adds extra jsonl files in the same row schema (``kind/state/question/options/target[/weight]``),
 each optionally ``path:repeat``.
+
+``--full_ft`` trains every weight of the text backbone instead of a LoRA (FSDP2: fp32 master weights, gradients and
+AdamW states sharded across GPUs, bf16 compute; ``--cpu_offload`` moves the shards to host memory for 27B on 4 GPUs).
+Checkpoints then hold the text-model weights (``model.safetensors``, bf16) plus ``head.pt``.
+
+``--save_state_every N`` writes a resumable training state (trainable weights, optimiser, RNG, step, best, history) to
+``<out>/state`` every N steps; ``--resume`` continues from it with the same data order (see ``trainjev.resume``).
 """
 import argparse
 import json
@@ -29,14 +36,16 @@ import math
 import os
 import random
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import torch
 import torch.distributed as dist
 
-from trainjev.data import encode, is_placeholder, load_rows, micro_batches
-from trainjev.losses import kl_rps
+from trainjev.data import encode_many, is_placeholder, load_rows, micro_batches
+from trainjev.losses import kl_rps_batch, pack_targets
 from trainjev.metrics import metrics
-from trainjev.modeling import LORA_TARGETS, VERBALIZER_IDS, DecisionHead, check_verbalizers, last_hidden
+from trainjev.modeling import LORA_TARGETS, RANGES, VERBALIZER_IDS, DecisionHead, check_verbalizers, last_hidden
+from trainjev.resume import load_state, save_state
 
 
 def parse_args(argv=None):
@@ -60,28 +69,17 @@ def parse_args(argv=None):
     ap.add_argument("--val_n", type=int, default=4000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--no_gc", action="store_true", help="disable gradient checkpointing (faster, more memory)")
+    ap.add_argument("--full_ft", action="store_true", help="full-parameter training of the text backbone (FSDP2)")
+    ap.add_argument("--cpu_offload", action="store_true", help="--full_ft: keep sharded params/grads/optimizer on CPU")
+    ap.add_argument("--save_steps", action="store_true", help="--full_ft: also keep stepNNNNN/ checkpoints")
+    ap.add_argument("--save_state_every", type=int, default=0, help="write <out>/state every N steps (0 = never)")
+    ap.add_argument("--resume", action="store_true", help="continue from <out>/state if it exists")
     return ap.parse_args(argv)
 
 
-def main(argv=None):
-    a = parse_args(argv)
-    from peft import LoraConfig, get_peft_model
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+def setup_data(a, log):
+    """-> ``(train, val, steps, step_rows, augment)``, shared by the LoRA and the full-parameter trainers."""
 
-    dist.init_process_group("nccl")
-    rank, world = dist.get_rank(), dist.get_world_size()
-    torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
-    dev = "cuda"
-    log = (lambda *s: print(*s, flush=True)) if rank == 0 else (lambda *s: None)
-    os.makedirs(a.out, exist_ok=True)
-    torch.manual_seed(a.seed)
-    torch.backends.cuda.matmul.allow_tf32 = True
-
-    tok = AutoTokenizer.from_pretrained(a.base)
-    check_verbalizers(tok)
-    pad = tok.pad_token_id if tok.pad_token_id is not None else 0
-
-    # ------------------------------------------------------------------ data
     def prep(rows):
         out = []
         for r in rows:
@@ -102,7 +100,6 @@ def main(argv=None):
         train += extra
     val = load_rows(f"{a.data}/validation.jsonl", a.val_n, seed=1)
     steps = a.steps or len(train) // a.batch
-    log(f"train rows {len(train)}  steps {steps}  world {world}  batch {a.batch}")
 
     by_kind = {}
     for i, r in enumerate(train):
@@ -123,6 +120,85 @@ def main(argv=None):
         rng.shuffle(perm)
         return dict(r, options=[r["options"][j] for j in perm], target=[r["target"][j] for j in perm])
 
+    return train, val, steps, step_rows, augment
+
+
+def lr_schedule(steps):
+    """Linear warm-up over 3% of the steps, then one cosine down to 0.02x."""
+    warm = max(1, int(0.03 * steps))
+
+    def lr_mult(s):
+        if s < warm:
+            return (s + 1) / warm
+        p = (s - warm) / max(1, steps - warm)
+        return 0.02 + 0.98 * 0.5 * (1 + math.cos(math.pi * min(1.0, p)))
+
+    return lr_mult
+
+
+def step_batches(a, tok, step_rows, augment, rank, world, start, stop):
+    """Yield ``(step, rows, token ids)`` of this rank for ``start .. stop - 1``. Sampling, augmentation and
+    tokenisation of step ``s + 1`` run in a background thread while step ``s`` trains; both are seeded by the step,
+    so the result does not depend on timing."""
+
+    def build(s):
+        rng = random.Random(a.seed * 7919 + s * 131 + rank)
+        rows = [augment(r, rng) for r in step_rows(s)[rank::world]]
+        return rows, encode_many(tok, rows, a.max_len)
+
+    with ThreadPoolExecutor(1) as ex:
+        fut = ex.submit(build, start) if start < stop else None
+        for s in range(start, stop):
+            rows, ids = fut.result()
+            if s + 1 < stop:
+                fut = ex.submit(build, s + 1)
+            yield s, rows, ids
+
+
+def micro_loss(head, h, rows, rps_w):
+    """Weighted sum of the per-row KL (+ RPS) over a micro-batch, as a tensor (no host sync)."""
+    lo, n, tgt, sc, w = (x.to(h.device, non_blocking=True) for x in pack_targets(rows))
+    return (kl_rps_batch(head.slot_logits(h), lo, n, tgt, sc, rps_w) * w).sum()
+
+
+@torch.no_grad()
+def head_probs(head, h, rows):
+    """Per-row softmax over each row's own slots, with one device-to-host copy per micro-batch."""
+    z = head.slot_logits(h).cpu()
+    out = []
+    for zz, r in zip(z, rows):
+        lo, _ = RANGES[r["kind"]]
+        out.append(torch.softmax(zz[lo: lo + len(r["options"])], -1).tolist())
+    return out
+
+
+def main(argv=None):
+    a = parse_args(argv)
+    if a.full_ft:
+        from trainjev.train_full import main_full
+
+        return main_full(a)
+    from peft import LoraConfig, get_peft_model
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    dist.init_process_group("nccl")
+    rank, world = dist.get_rank(), dist.get_world_size()
+    torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
+    dev = "cuda"
+    log = (lambda *s: print(*s, flush=True)) if rank == 0 else (lambda *s: None)
+    os.makedirs(a.out, exist_ok=True)
+    torch.manual_seed(a.seed)
+    torch.backends.cuda.matmul.allow_tf32 = True
+
+    tok = AutoTokenizer.from_pretrained(a.base)
+    check_verbalizers(tok)
+    pad = tok.pad_token_id if tok.pad_token_id is not None else 0
+
+    # ------------------------------------------------------------------ data
+    train, val, steps, step_rows, augment = setup_data(a, log)
+    log(f"train rows {len(train)}  steps {steps}  world {world}  batch {a.batch}")
+    val_ids = encode_many(tok, val, a.max_len)
+
     # ------------------------------------------------------------------ model
     base = AutoModelForCausalLM.from_pretrained(a.base, dtype=torch.bfloat16)
     init_rows = base.get_output_embeddings().weight[VERBALIZER_IDS].detach().float().clone()
@@ -142,13 +218,7 @@ def main(argv=None):
     opt = torch.optim.AdamW([{"params": lora_params, "lr": a.lr}, {"params": head.parameters(), "lr": a.head_lr}],
                             betas=(0.9, 0.98), weight_decay=0.0, fused=True)
     base_lrs = [a.lr, a.head_lr]
-    warm = max(1, int(0.03 * steps))
-
-    def lr_mult(s):
-        if s < warm:
-            return (s + 1) / warm
-        p = (s - warm) / max(1, steps - warm)
-        return 0.02 + 0.98 * 0.5 * (1 + math.cos(math.pi * min(1.0, p)))
+    lr_mult = lr_schedule(steps)
 
     def all_reduce_grads():
         ps = lora_params + list(head.parameters())
@@ -169,12 +239,11 @@ def main(argv=None):
         body.eval()
         probs = [None] * len(rows)
         mine = list(range(rank, len(rows), world))
-        items = [(len(encode(tok, rows[i], a.max_len)), i) for i in mine]
+        items = [(len(val_ids[i]), i) for i in mine]
         res = {}
         for mb in micro_batches(items, a.micro_tokens * 2):
-            h = last_hidden(body, [encode(tok, rows[i], a.max_len) for i in mb], pad, dev)
-            for i, hh in zip(mb, h):
-                res[i] = torch.softmax(head.logits(hh, rows[i]["kind"], len(rows[i]["options"])), -1).tolist()
+            h = last_hidden(body, [val_ids[i] for i in mb], pad, dev)
+            res.update(zip(mb, head_probs(head, h, [rows[i] for i in mb])))
         gathered = [None] * world
         dist.all_gather_object(gathered, res)
         for g in gathered:
@@ -198,40 +267,40 @@ def main(argv=None):
         with open(os.path.join(a.out, "args.json"), "w") as f:
             json.dump(vars(a), f, indent=1)
     best = (1e9, None)
+    start = 0
+    state_dir = os.path.join(a.out, "state")
+    if a.resume:
+        meta = load_state(state_dir, body, head, opt)
+        if meta:
+            start, best, hist = meta["step"], tuple(meta["best"]), meta["hist"]
+            log(f"resumed from {state_dir} at step {start}")
     t0 = time.time()
     tok_seen = 0
     body.train()
     last = a.max_steps or steps
-    for s in range(last):
-        rng = random.Random(a.seed * 7919 + s * 131 + rank)
-        rows = [augment(r, rng) for r in step_rows(s)[rank::world]]
-        enc = [(len(e), (e, r)) for r in rows for e in [encode(tok, r, a.max_len)]]
+    for s, rows, ids in step_batches(a, tok, step_rows, augment, rank, world, start, last):
+        enc = [(len(e), (e, r)) for e, r in zip(ids, rows)]
         for i, g in enumerate(opt.param_groups):
             g["lr"] = base_lrs[i] * lr_mult(s)
-        tot_loss, tot_w = 0.0, 0.0
+        tot_loss, tot_w = torch.zeros((), device=dev), 0.0
         # ranks may run different numbers of micro-batches: gradients are reduced manually after all of them
         for mb in micro_batches(enc, a.micro_tokens):
             h = last_hidden(body, [e for e, _ in mb], pad, dev)
-            loss = 0.0
-            for (e, r), hh in zip(mb, h):
-                z = head.logits(hh, r["kind"], len(r["options"]))
-                t = torch.tensor(r["target"], device=dev, dtype=torch.float32)
-                lv = kl_rps(z, t / t.sum(), r["kind"], a.rps_w) * r["weight"]
-                loss = loss + lv
-                tot_loss += lv.item()
-                tot_w += r["weight"]
-                tok_seen += len(e)
+            loss = micro_loss(head, h, [r for _, r in mb], a.rps_w)
+            tot_loss += loss.detach()
+            tot_w += sum(r["weight"] for _, r in mb)
+            tok_seen += sum(len(e) for e, _ in mb)
             (loss / a.batch * world).backward()  # mean over the global batch after the all-reduce mean
         all_reduce_grads()
         gn = torch.nn.utils.clip_grad_norm_(lora_params + list(head.parameters()), 1.0)
         opt.step()
         opt.zero_grad(set_to_none=True)
         if s % 10 == 0 or s == last - 1:
-            el = time.time() - t0
+            el, done = time.time() - t0, s + 1 - start
             mem = torch.cuda.max_memory_allocated() / 1e9
-            log(f"step {s + 1}/{steps} loss {tot_loss / max(tot_w, 1e-9):.4f} gnorm {gn.item():.3f} "
-                f"lr {opt.param_groups[0]['lr']:.2e} {el / (s + 1):.2f}s/step  ~{tok_seen * world / el:.0f} tok/s  "
-                f"eta {(steps - s - 1) * el / (s + 1) / 3600:.2f}h  mem {mem:.1f}GB")
+            log(f"step {s + 1}/{steps} loss {tot_loss.item() / max(tot_w, 1e-9):.4f} gnorm {gn.item():.3f} "
+                f"lr {opt.param_groups[0]['lr']:.2e} {el / done:.2f}s/step  ~{tok_seen * world / el:.0f} tok/s  "
+                f"eta {(steps - s - 1) * el / done / 3600:.2f}h  mem {mem:.1f}GB")
         if (s + 1) % a.eval_every == 0 or s == last - 1:
             m = evaluate(val)
             hist.append({"step": s + 1, "val": m, "elapsed_h": (time.time() - t0) / 3600})
@@ -244,6 +313,8 @@ def main(argv=None):
             if m["all"]["kl"] < best[0]:
                 best = (m["all"]["kl"], s + 1)
                 save("best")
+        if a.save_state_every and (s + 1) % a.save_state_every == 0:
+            save_state(state_dir, body, head, opt, {"step": s + 1, "best": best, "hist": hist})
     log(f"done; best val KL {best[0]:.4f} at step {best[1]}")
     dist.destroy_process_group()
 

@@ -4,6 +4,10 @@
 
 #### features
 
+- `--full_ft` 全参训练（`trainjev/train_full.py`，FSDP2：fp32 主权重、梯度和 AdamW 状态按卡切分，bf16 计算；`--cpu_offload` 把分片放到主机内存）。各 rank 先在 meta 设备上建模型并切分，只有 rank 0 读 checkpoint、逐张量广播进分片，rotary `inv_freq` 重新计算；4B 实测加载阶段主机内存峰值 96 GiB → 31 GiB。全参 checkpoint 存文本模型权重（`model.safetensors`）+ `head.pt`，`load_trained` 统一加载 LoRA / 全参 checkpoint（`evaluate`、`eval_vision`、`serve` 共用）。4B 全参与 LoRA 的对照结果见 `docs/results.md` §8（全参未胜出，27B 用 LoRA）。
+- 断点续训：`--save_state_every N` 每 N 步把可训练权重、AdamW 状态、各 rank RNG、step / best / history 用 `torch.distributed.checkpoint` 写到 `<out>/state`（全参按分片存，先写 `state.tmp` 再原子替换），`--resume` 接着训，数据顺序不变；换 GPU 数续训会直接报错。4B LoRA 实测"3 步 + 存档 + 新进程续 3 步"和直接跑 6 步的 adapter / head 完全一致。
+- 训练内循环提速：loss 改为整个 micro-batch 一次算（`losses.kl_rps_batch`，24 槽位 logits + mask），不再每行一次 `.item()`；批量分词 `data.encode_many`（约 10×），下一步的采样和分词在后台线程预取；验证集只在启动时编码一次，`evaluate.py` 去掉重复编码。训练语义不变（采样、置换、归一化、学习率表、checkpoint 格式都没动）。GPU 上 3 步冒烟和改前不是逐位一致（bf16 / TF32 求和顺序），见 `docs/training.md`。
+- `scripts/audit_training_data.py`：加新数据前审计 JEV 格式训练集——target / 槽位检查、归一化后重复与标签冲突、与验证 / OOD / PK / Decision Index 输入的 state 级和完整 prompt 级重叠，记录文件 SHA256；只报告，不自动删除或批准数据。
 - 超过 16 个选项的 `choice` 题新增 `single` 和 `permute` 两种读法，和原有的 `tournament` 一起，对应 JEV-27B-VL `serve_decide.py` 的三种策略。服务端用 `--strategy` 选（默认 `single`，和 JEV-27B-VL 在 Qwen 底座上的默认一致），单个请求也可以在请求体里传 `"strategy"` 覆盖。`single` 一次前向读完：A–P 用训练过的决策头，Q–Z、AA、AB… 用底座 `lm_head` 的行、bias 为 0（`trainjev.modeling.choice_labels`）。`tournament` 现在把各组放在一个 batch 里打分。
 - `trainjev.serve --device cpu`：没有 GPU 时用 fp32 在 CPU 上推理（很慢，只适合小规模核对）。
 - 宽选项意图分类评测：`scripts/wide_build.py` 从 HF Hub 构建 CLINC150（150 类）/ BANKING77（77 类）/ MASSIVE en（59 类），后两个和 PK 题库逐字节一致；`scripts/run_wide.sh` 对三种策略各跑一遍并输出配对报告。`scripts/pk_benchmark.py run` 新增 `--strategy` 和 `--log_every`。

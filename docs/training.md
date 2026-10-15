@@ -98,6 +98,32 @@ loss = Σ_rows weight · [ KL(target ‖ softmax(z)) + 0.5 · RPS(target, softma
   plus a final, only ever reading the trained A–P) or `permute` (`single` over 4 option orders, averaged). See
   [results.md §7](results.md#7-wide-choice-questions-17256-options).
 
+### Data audit before a new recipe
+
+Use `scripts/audit_training_data.py` before adding a candidate gold pool:
+
+```bash
+python scripts/audit_training_data.py \
+  --train data/jev-distill-corpus-v3/train.jsonl --gold data/candidate-gold.jsonl \
+  --heldout data/jev-distill-corpus-v3/validation.jsonl data/jev-distill-corpus-v3/ood.jsonl \
+  --pk-suite data/pk --di-rows data/di-requests.jsonl.gz --out outputs/data-audit
+```
+
+Supply every final evaluation input and optionally `--source-jsonl` raw records with upstream provenance. The tool
+checks targets/slots, normalized duplicates and target disagreements, state overlap and complete-prompt overlap,
+and saves file SHA256 values. It parses top-level `state`, PK `text`, and `payload.body.state` / `body.state` /
+`request.state`; missing inputs are reported as incomplete evidence. Prediction-only `rows.json` files are not
+substitutes for benchmark request files. Empty contexts are valid but cannot establish state-level independence.
+
+The optional candidate-index output groups by normalized state, not by individual question. It always marks rows
+as unapproved: this does not verify label truth, upstream split/licence, source/template independence or isolation
+of counterfactual twins. Casefold/whitespace matches need review rather than automatic deletion.
+
+The initial local audit finds extensive shared states between the original corpus train and in-distribution splits,
+while OOD states do not overlap. Shared state is not necessarily repeated questions or label leakage: multiple
+questions can legitimately use one context. Report both levels and use fresh state/group-disjoint development
+data for new-recipe selection. The current reproduction run retains its frozen splits for comparability.
+
 ## 6. Optimisation
 
 | item | value |
@@ -127,6 +153,69 @@ calibration.json                                 # written by `trainjev.evaluate
 `trainjev.evaluate --fit_calibration` fits one temperature per kind on the `calibration` split (placeholders excluded)
 by golden-section search on log T, minimising cross-entropy to the soft targets. The server divides logits by these
 temperatures.
+
+### Resuming long runs
+
+`best/` and `stepNNNNN/` are inference checkpoints, **not** complete training states. For long 27B runs, enable
+`--save_state_every 100` from the start. All ranks collectively save trainable weights, AdamW state, Python/Torch/CUDA
+RNG, the completed step, best-validation record and history into `<out>/state/` using
+`torch.distributed.checkpoint`. Full-parameter model and optimiser states remain sharded.
+
+Restart with the same command, output directory and GPU count, adding `--resume`:
+
+```bash
+torchrun --nproc_per_node 4 -m trainjev.train \
+  --base Qwen/Qwen3.8-27B --data data/jev-distill-corpus-v3 --out runs/jev-27b \
+  --micro_tokens 16384 --save_state_every 100 --resume
+```
+
+Keep the model, dataset, seed, global batch, learning rates, augmentation and total `--steps` schedule unchanged.
+`--max_steps` is only a stopping limit and does not shorten the learning-rate schedule. The checkpoint loader rejects
+a different world size because rank-local sampling slices and RNG would change. A state is written to `state.tmp/`
+and replaces the previous state only after all ranks finish; `state.old/` is a recovery fallback if the swap was
+interrupted. Do not delete these directories to restart a run.
+
+State saving happens on multiples of `--save_state_every`; after a 5,123-step run with interval 100, the last resumable
+state is normally step 5,100, while `step05123/` contains the final inference weights. Validate successful training
+exit and the final checkpoint separately; do not mistake a three-step smoke checkpoint for a completed run.
+
+### GPU optimisation checks (2026-10-14)
+
+The implementation keeps the handwritten PyTorch/DDP/FSDP2 trainers. It adds rank-0 checkpoint loading after meta
+initialisation/sharding for full fine-tuning, batched 24-slot KL/RPS computation, next-step tokenisation prefetch and
+complete DCP training states. Tokenisation is prefetched, **not** cached by concatenating independently tokenised
+prefixes; prompt token boundaries, sampling and option permutation remain unchanged. Optional shared-prefix and
+DDP communication-overlap changes are not enabled.
+
+CPU tests: all passed (incl. `tests/test_train_opt.py`); ruff passed. GPU checks use 4×H20, Qwen3.5-4B, seed 0, global batch 24, micro-token budget
+4,096, gradient checkpointing disabled, a 5,123-step LR schedule and a three-step stopping limit.
+
+| Check | Before | After | Interpretation |
+|---|---:|---:|---|
+| LoRA step-3 loss | 0.4320 | 0.4333 | Not bit-identical |
+| LoRA step-3 validation KL (100 rows) | 0.450388 | 0.450648 | Small, nonzero difference |
+| LoRA step-3 s/step | 1.99 | 2.04 | No demonstrated speed gain in this smoke test |
+| Full-parameter step-3 loss | 0.4264 | 0.4321 | Not bit-identical |
+| Full-parameter step-3 validation KL (100 rows) | 0.449687 | 0.450884 | Not a strict numerical-equivalence pass |
+| Full-parameter step-3 s/step | 2.35 | 1.65 | Smoke-test timing only |
+| Full-parameter loading peak, summed process RSS | 96.17 GiB | 31.01 GiB | Lower host-memory use |
+
+The LoRA adapter/head maximum parameter differences after three steps are 7.335e-6 / 3.943e-6. The full-parameter
+bf16 checkpoint maximum difference is 0.00390625, exceeding the planned 1e-3 threshold; that strict check remains
+unresolved and must not be advertised as passing. That maximum occurs at one scalar each in
+`layers.{0,21,25,26}.linear_attn.norm.weight`; overall model RMS difference is 1.205e-7, relative L2 difference is
+1.021e-5, and 415,674 of 4,205,751,296 elements differ. This is not evidence of widespread large parameter errors.
+The RSS figures sum the sampled process tree, include imports/data, and were sampled every second; logged
+load-plus-shard time is 14 s / 16 s before/after, so lower host-memory use is not a demonstrated loading speedup.
+A separate synthetic head probe finds that TF32 increases the
+batch-vs-row maximum logit difference from 7.15e-7 to 6.85e-4, but this does not establish the cause of all training
+differences. Three steps do not establish steady-state throughput or convergence equivalence.
+
+**LoRA resume check passed exactly:** three steps, DCP save, fresh-process load and three more steps produce the
+same adapter and head as an uninterrupted six-step run (maximum difference 0 for both; identical step-6 validation
+KL 0.416699). The 4B resumable state is about 370 MB. This is a resume check, not a completed training run or an
+assessment of model quality. The current 27B experiment uses the verified LoRA path and preserves its original
+TF32 setting across the saved-state boundary; it does not use the unresolved full-parameter path.
 
 > If you train on data without placeholder rows (`--placeholder_w 0`), the validation subset still contains them and
 > their KL rises as the model stops predicting 0.5. Select checkpoints on the non-placeholder part of validation, or

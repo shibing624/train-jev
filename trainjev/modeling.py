@@ -82,6 +82,10 @@ class DecisionHead(nn.Module):
         b = torch.cat([self.bias[lo: lo + 16], self.bias.new_zeros(n - 16)])
         return h.float() @ w.T + b
 
+    def slot_logits(self, h):
+        """``[B, d]`` -> ``[B, 24]`` logits over every slot (training path; see ``losses.kl_rps_batch``)."""
+        return h.float() @ self.weight.T + self.bias
+
 
 def last_hidden(body, batch_ids, pad_id, device):
     """Right-padded batch -> final-norm hidden state at each row's last real token.
@@ -99,14 +103,46 @@ def last_hidden(body, batch_ids, pad_id, device):
     return h[torch.arange(len(batch_ids), device=device), idx]
 
 
-def load_model(base, adapter="", dtype=torch.bfloat16, device="cuda"):
-    """Load ``(tokenizer, body, head)`` for inference.
+def is_full_checkpoint(ckpt):
+    """A ``--full_ft`` checkpoint holds the text-model weights (``model.safetensors``) instead of a LoRA adapter."""
+    import os
 
-    ``adapter=""`` gives the untrained reference (head initialised from ``lm_head``); otherwise the LoRA is merged into
-    the text backbone and the trained head is loaded from ``<adapter>/head.pt``.
+    return bool(ckpt) and os.path.exists(os.path.join(ckpt, "model.safetensors")) and not os.path.exists(
+        os.path.join(ckpt, "adapter_config.json"))
+
+
+def load_trained(text_model, head, ckpt):
+    """Apply a train-jev checkpoint to ``text_model`` (a Qwen3.5 text model) and ``head``; returns the text model.
+
+    LoRA checkpoints are merged into the weights; full checkpoints replace every weight (strict key match).
     """
     import os
 
+    if is_full_checkpoint(ckpt):
+        from safetensors.torch import load_file
+
+        sd = load_file(os.path.join(ckpt, "model.safetensors"))
+        dtype = next(text_model.parameters()).dtype
+        missing, unexpected = text_model.load_state_dict({k: v.to(dtype) for k, v in sd.items()}, strict=False)
+        if missing or unexpected:
+            raise ValueError(f"full checkpoint does not match the base: missing {missing[:5]} "
+                             f"unexpected {unexpected[:5]}")
+    else:
+        from peft import PeftModel
+
+        text_model = PeftModel.from_pretrained(text_model, ckpt).merge_and_unload()
+    sd = torch.load(os.path.join(ckpt, "head.pt"), map_location="cpu")
+    head.weight.data.copy_(sd["weight"])
+    head.bias.data.copy_(sd["bias"])
+    return text_model
+
+
+def load_model(base, adapter="", dtype=torch.bfloat16, device="cuda"):
+    """Load ``(tokenizer, body, head)`` for inference.
+
+    ``adapter=""`` gives the untrained reference (head initialised from ``lm_head``); otherwise ``adapter`` is a
+    train-jev checkpoint directory (LoRA or full-parameter, see ``load_trained``).
+    """
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     tok = AutoTokenizer.from_pretrained(base)
@@ -117,12 +153,7 @@ def load_model(base, adapter="", dtype=torch.bfloat16, device="cuda"):
     head.wide = m.get_output_embeddings().weight[wide_ids[16:]].detach().float().clone()
     body = m.model
     if adapter:
-        from peft import PeftModel
-
-        body = PeftModel.from_pretrained(body, adapter).merge_and_unload()
-        sd = torch.load(os.path.join(adapter, "head.pt"), map_location="cpu")
-        head.weight.data.copy_(sd["weight"])
-        head.bias.data.copy_(sd["bias"])
+        body = load_trained(body, head, adapter)
     del m.lm_head
     body.to(device).eval()
     head.to(device)

@@ -146,7 +146,7 @@ Qwen3.8-27B 的 config 和 autotrust/JEV-27B-VL 完全一致，LoRA（108.8M）�
 ### 结论
 
 1. **配方复现正确**：分布内 KL（0.018）、验证集曲线、校准温度（都接近 1.0）都和官方 27B 的报告吻合。
-2. **4B 的容量是主要瓶颈**：一到分布外、知识推理、类别很多的意图分类，就和 27B 拉开差距。Decision Index 上 train-jev 4B（40.4）和 Kev-4B（38.4）在同一档，离 4B 第一梯队（51–56）还差 11–16 分。
+2. **主要差距出现在泛化任务**：分布外、知识推理和宽选项分类落后于当前 27B 参照，但容量、数据覆盖与读法尚未完全隔离，不能归因于容量 alone。Decision Index 上 train-jev 4B（40.4）和 Kev-4B（38.4）在同一档，离榜单 4B 参考（同面板重算 51–56）还差 11–16 分；这些榜单参考不是我们的同题本地消融。
 3. **保留看图能力是这套方法的独特优势**：同尺寸的 Kev-4B 不支持图像。
 
 Decision Index 各领域分数、PK 评测、各 checkpoint 的训练曲线，以及评测口径说明，见 [docs/results.md](docs/results.md)。
@@ -268,10 +268,11 @@ GPUS=0,1,2,3,4,5,6,7 bash scripts/run_train_27b.sh                 # -> runs/jev
 
 - [x] 在 Qwen3.5-4B 上复现 JEV 配方（LoRA + 24 槽位头 + KL/RPS），对齐官方 JEV-27B 的训练曲线和分布内 KL
 - [x] 温度校准、System One 兼容服务、>16 选项的 single / tournament / permute 三种读法
-- [ ] 在 GPU 上跑完宽选项评测（`scripts/run_wide.sh`），按结果确定 4B 的默认策略
+- [ ] **等当前 27B 训练和全套评测完成、GPU 空闲后**，用同一 4B checkpoint、同一批 CLINC150 / BANKING77 / MASSIVE 宽选项样本对比 `single` / `tournament` / `permute`（`scripts/run_wide.sh`），记录准确率、ECE、延迟与换序稳定性，补入 `docs/results.md` 和 README，再按结果决定 4B 默认策略。可加入 JEV-27B-VL 参照，但不把跨模型差异当作读法消融；历史 PK 固定 `tournament` 复现。
+- [ ] HLE / HoVer 原始文件完整校验后，在隔离目录构建完整 Decision Index 0.3 的 37 基准面板；当前 27B 与原 JEV-27B-VL 使用相同新题库评测。保留旧 35 基准采样结果，不把两种面板混比，也不把采样分数称为官方完整总分。
 - [x] 5 套评测：jev-distill（分布内/外）、Decision Index 0.3、Kev transfer-v4、零样本图像决策、13 数据集分类 PK
 - [x] 适配 Qwen3.8-27B 底座（JEV-27B 同款）：加载、初始化检查、训练、评测已跑通
-- [ ] **在当前 LoRA 配方的基础上，用 "jev-distill + 更广的公开金标数据" 做一轮全参微调**（或高 rank LoRA）。目标是补上和 4B 第一梯队差距最大的两块：Knowledge & Reasoning（0.32 vs 0.44）和 Language Understanding（0.39 vs 0.58）。榜上排名靠前的 4B 模型（d3-mini、RSI-Jev 4B）都用了全参微调。
+- [ ] **4B-v2 受控数据与配方优化，再迁移 27B-v2**：先核验独立金标来源、上游 split/revision、重复与评测泄漏，再逐项测试数据混入、选项覆盖和训练容量。短探针固定完整 LR schedule、步数、token 预算与实际采样比例；有希望的方案跑完整 4B 并重复 seed，独立 dev 的泛化收益、校准与视觉门槛通过后再训练 27B-v2。全参和高 rank LoRA 是待验证候选，不预设必然优于当前 LoRA，也不回灌评测错题追分。目标是可靠超过原 JEV-27B-VL；SOTA 结论须由完整同口径评测支持。
 - [ ] 混入金标数据时保住校准：硬标签容易让模型过度自信，计划试 label smoothing，或对金标部分单独拟合温度
 - [ ] 训练 Qwen3.5-9B 和 Qwen3.8-27B 两个尺寸，跑全套评测
 - [ ] 发布 train-jev 4B / 9B / 27B 权重到 Hugging Face

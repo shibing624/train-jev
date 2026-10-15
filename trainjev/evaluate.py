@@ -23,7 +23,7 @@ import math
 import os
 import time
 
-from trainjev.data import encode, is_placeholder, load_rows, micro_batches
+from trainjev.data import encode_many, is_placeholder, load_rows, micro_batches
 from trainjev.metrics import metrics
 
 
@@ -112,9 +112,10 @@ def make_backend(a):
     @torch.no_grad()
     def logits_of(rows):
         out = [None] * len(rows)
-        items = [(len(encode(tok, r)), i) for i, r in enumerate(rows)]
+        ids = encode_many(tok, rows)
+        items = [(len(e), i) for i, e in enumerate(ids)]
         for mb in micro_batches(items, a.batch_tokens):
-            h = last_hidden(body, [encode(tok, rows[i]) for i in mb], 0, "cuda")
+            h = last_hidden(body, [ids[i] for i in mb], 0, "cuda")
             for i, hh in zip(mb, h):
                 out[i] = head.logits(hh, rows[i]["kind"], len(rows[i]["options"])).tolist()
         return out

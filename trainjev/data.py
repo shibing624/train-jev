@@ -49,6 +49,15 @@ def encode(tok, row, max_len=2048, labels=LABELS):
                add_special_tokens=False).input_ids[:max_len]
 
 
+def encode_many(tok, rows, max_len=2048, labels=LABELS):
+    """``[encode(tok, r, max_len, labels) for r in rows]``, with one batched tokenizer call (about 10x faster)."""
+    if not rows:
+        return []
+    ids = tok([prompt(r["kind"], r["state"], r["question"], r["options"], labels) for r in rows],
+              add_special_tokens=False).input_ids
+    return [e if len(e) <= max_len else encode(tok, r, max_len, labels) for e, r in zip(ids, rows)]
+
+
 def load_rows(path, limit=None, seed=None):
     """Read a jsonl file; optionally a fixed random subset of ``limit`` rows."""
     with open(path) as f:

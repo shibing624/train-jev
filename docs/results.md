@@ -208,3 +208,67 @@ Checks done for train-jev 4B:
 
 The full `single` / `tournament` / `permute` comparison on CLINC150 / BANKING77 / MASSIVE en (`scripts/run_wide.sh`)
 has not been run yet.
+
+## 8. 4B 全参训练与 LoRA 对照（2026-10-14）
+
+底座均为 Qwen3.5-4B，使用同一份 jev-distill-corpus-v3、全局 batch 128、相同损失、采样和选项置换，
+训练 5,123 步；按固定 4,000 行验证集的最低 KL 选择 checkpoint，两者均选中第 5,123 步。
+LoRA 使用 r16、学习率 1e-4，3×H20；全参更新文本底座全部参数，使用学习率 2e-6，4×H20、FSDP2。
+两者决策头学习率均为 2e-4，micro-token budget 均为 4,096，均关闭 gradient checkpointing。
+视觉塔未参与训练。以下是实际产物的评测结果，不是学习率探针的结果。
+
+| 指标 | 4B LoRA | 4B 全参 | 方向 |
+|---|---:|---:|:---:|
+| 最佳 validation KL（4,000 行） | 0.0160 | 0.0162 | ↓ |
+| test_set_30k KL（6,000 行，校准后） | 0.02239 | **0.02174** | ↓ |
+| OOD KL（3,000 行，校准后） | **0.31073** | 0.46604 | ↓ |
+| Decision Index 0.3，35 基准重算（6,000 行） | **40.35** | 37.52 | ↑ |
+| transfer-v4 accuracy（656 行） | **0.77896** | 0.76220 | ↑ |
+| transfer-v4 ECE | 0.07468 | **0.06520** | ↓ |
+| transfer-v4 NLL | 0.74455 | **0.66690** | ↓ |
+| 13-dataset PK accuracy（1,300 行） | **0.64692** | 0.61077 | ↑ |
+| PK：Kev 训过的 5 个来源（500 行） | **0.718** | 0.672 | ↑ |
+| PK：Kev 未训过的 8 个来源（800 行） | **0.6025** | 0.5725 | ↑ |
+| 视觉决策 mean skill（5 个集合等权平均） | **0.69729** | 0.68757 | ↑ |
+| 视觉决策 mean accuracy（5 个集合等权平均） | **0.80155** | 0.79494 | ↑ |
+| 训练耗时（含周期验证，不含加载/最终评测） | 2.77 h（3 卡） | 3.15 h（4 卡） | ↓ |
+
+Decision Index 的五个 area skill：
+
+| 方法 | Knowledge | Language | Retrieval | Tools | Arts |
+|---|---:|---:|---:|---:|---:|
+| LoRA | 0.322 | 0.394 | 0.415 | 0.584 | 0.287 |
+| 全参 | 0.263 | 0.341 | 0.436 | 0.579 | 0.260 |
+
+PK 的配对比较中，全参独有正确 42 行、LoRA 独有正确 89 行，双侧精确 McNemar p≈4.9e-5。
+该检验只针对这 1,300 行，并不消除训练种子和其他评测集的变异。
+历史全参服务的启动命令未显式记录宽选项策略，不能仅凭当前默认值确认其历史读法。
+排除 BANKING77 / MASSIVE en / MASSIVE zh 三个宽选项场景后，剩余同题 1,000 行仍为
+LoRA 633 行正确、全参 600 行正确；LoRA/全参独有正确 67/34 行，精确 McNemar p=0.00133。
+因此 PK 差距不能全部归因于宽选项策略，但完整宽题消融仍待 GPU 空闲后完成。
+
+transfer-v4 的同题准确率差为 511/656 对 500/656，LoRA/全参独有正确 33/22 行，
+精确 McNemar p=0.177；这批样本不足以证明其准确率差显著。全参在该集上更好的 NLL/ECE 应同时保留，
+不能把结果概括为所有指标都更差。
+
+OOD choice 的 top-1 约为 88.84% / 88.69%，而 KL 为 0.31905 / 0.54443：
+top-1 接近并不意味着完整概率分布接近。这里 top-1 只统计 teacher 有唯一最大值的题，
+KL 则统计全部 738 行（见 `trainjev/metrics.py`），两者分母口径不同。
+这支持“该 OOD 集上的分布匹配退化”，不构成已证明具体原因或所有域外任务准确率下降。
+两组验证 KL 仍持续下降，不能仅凭 OOD 差距断言已观察到后期过拟合。
+
+视觉实际覆盖 CV-Bench / BLINK / RealWorldQA / CharXiv 各 300 行、InfoVQA 244 行，共 1,444 行；
+两模型的行集合相同。前文“300 items each”是抽样上限，不代表每个集合都实际有 300 行。
+
+**本轮结论：全参在分布内 KL、transfer-v4 的 ECE/NLL 上略好，但 OOD、Decision Index、PK 和视觉平均 skill
+没有改善，因此不满足“4B 全参效果更好”的升级条件。按预先约定，Qwen3.8-27B 采用 LoRA，而不是全参。**
+这是当前纯蒸馏数据、当前学习率与单个 seed 下的结论，不意味着全参加更广公开金标数据也一定不如 LoRA。
+全参学习率 2e-6 来自独立的 400 步 cosine schedule、2,000 行 validation 的短 LR sweep，
+不是 5,123 步 schedule 的截断测试，也不足以证明完整 epoch 的超参已充分调优。
+
+### Qwen3.8-27B 后续实验
+
+27B LoRA 的完整训练与评测尚未完成，不在这里填入探针分数或预计分数。
+本轮配置：4×H20、r16、LoRA/head lr 1e-4/2e-4、global batch 128、max length 2,048、
+micro-token budget 16,384、开启 gradient checkpointing；目标仍为 5,123 步。
+训练保留可恢复的权重/优化器/RNG 状态，完成后评测相同 corpus、Decision Index、transfer-v4、PK 和视觉行集合。
