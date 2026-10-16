@@ -72,7 +72,7 @@ Every model answers **the same questions**. ↑ higher is better, ↓ lower is b
 Decision Index is a stratified 6,000-question sample with HLE and HoVer removed (they could not be rebuilt), not the
 official total. Jev 1.13's Decision Index and transfer-v4 scores come from the public board and the Kev repository.
 Latency was measured on one H20. Protocol, per-benchmark breakdowns and more comparisons:
-[docs/results.md](docs/results.md).
+[docs/results.en.md](docs/results.en.md).
 
 ## Quick Start
 
@@ -148,7 +148,7 @@ if resp["answers"]["billing"]["noul"] > 0.9:
 ```
 
 More examples (batched decisions, choices with more than 16 options, in-process inference) are in
-[examples/](examples/) and the [serving guide](docs/serving.md).
+[examples/](examples/) and the [serving guide](docs/serving.en.md).
 
 ## Train on Your Own Data
 
@@ -166,7 +166,7 @@ GPUS=0,1,2,3 bash scripts/run_train_27b.sh         # 27B: about 33 h on 4x H20
 ```
 
 Mix in your own data with `--mix mydata.jsonl:2`. The recipe, resuming, temperature calibration and memory sizing are
-in [docs/training.md](docs/training.md).
+in [docs/training.en.md](docs/training.en.md).
 
 ## How It Works
 
@@ -181,16 +181,16 @@ flowchart LR
 The 24 head rows are initialised from the backbone's `lm_head` rows of those tokens (`false/true`, `0–5`, `A–P`), so
 at step 0 the model already gives the backbone's own judgement, and training only sharpens it. The loss is KL to the
 teacher distribution, plus 0.5 × an ordinal RPS term on rating questions; 30% of choice questions have their options
-shuffled so the model answers by content, not position. Details: [docs/training.md](docs/training.md).
+shuffled so the model answers by content, not position. Details: [docs/training.en.md](docs/training.en.md).
 
 ## Documentation
 
 | Document | Contents |
 |---|---|
-| [docs/serving.md](docs/serving.md) | Serving and inference: server flags, API format, examples, choices with more than 16 options |
-| [docs/training.md](docs/training.md) | Recipe, data format, resuming, calibration, memory and speed, other backbones |
-| [docs/evaluation.md](docs/evaluation.md) | How to run and reproduce the five evaluation suites |
-| [docs/results.md](docs/results.md) | All results, breakdowns and limitations |
+| [docs/serving.en.md](docs/serving.en.md) | Serving and inference: server flags, API format, examples, choices with more than 16 options |
+| [docs/training.en.md](docs/training.en.md) | Recipe, data format, resuming, calibration, memory and speed, other backbones |
+| [docs/evaluation.en.md](docs/evaluation.en.md) | How to run and reproduce the five evaluation suites |
+| [docs/results.en.md](docs/results.en.md) | All results, breakdowns and limitations |
 
 ## Roadmap
 

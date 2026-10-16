@@ -1,60 +1,59 @@
-# Evaluation and published-input reproduction
+# 评测
 
-The completed 4B/27B main result uses five complementary suites. It is not enough to compare training accuracy,
-and it is not appropriate to mix a new full panel with an old sample or to change readout/backend silently.
+[English](evaluation.en.md)
 
-| evaluation | purpose | main size |
+发布的 4B / 27B 模型用五套互补的评测衡量。只看训练集上的准确率不够；也不要把新的完整面板和旧的抽样结果混在一起比，
+或者悄悄换掉读法 / 推理后端。
+
+| 评测 | 衡量什么 | 规模 |
 |---|---|---:|
-| jev-distill test_set_30k / OOD | distribution agreement with supplied targets | 6,000 / 3,000 |
-| Decision Index 0.3 legacy sample | multi-area decision skill | 6,000 requests;35 indexed benchmarks |
-| Kev transfer-v4 | independent accuracy and calibration | 656 clean decisions |
-| vision | retained zero-shot image decisions | 1,444 actual rows over 5 datasets |
-| classification PK | paired multilingual accuracy/calibration | 1,300 rows, 13×100 |
+| jev-distill test_set_30k / OOD | 与给定目标分布的一致程度 | 6,000 / 3,000 |
+| Decision Index 0.3 抽样 | 多领域的决策能力 | 6,000 题，35 个计分基准 |
+| Kev transfer-v4 | 训练时没见过的来源上的准确率和校准 | 656 题 |
+| 看图决策 | 零样本的图像决策能力 | 5 个数据集共 1,444 题 |
+| 13 数据集分类 PK | 中英文多数据集上的配对准确率 / 校准 | 1,300 题，13×100 |
 
-Wide-choice diagnostics are a separate sixth comparison: same 4B checkpoint, 600 each CLINC150/BANKING77/MASSIVE en.
-All numbers and limitations are in [results.md](results.md). No test labels are used to fit temperatures or select a
-prompt.
+超过 16 个选项的选择题另做一组对比：同一个 4B checkpoint，CLINC150 / BANKING77 / MASSIVE en 各 600 题。
+全部结果和局限见 [results.md](results.md)。所有评测都不用 test 标签拟合温度或挑选 prompt。
 
-## 1. Corpus and calibration
+## 1. 蒸馏语料与温度校准
 
-Download the pinned corpus/base with `scripts/prepare_data.sh`. The evaluation samples are selected by Python
-`random.Random(7)`; training validation selection uses seed 1, not the evaluation seed. Targets are supplied vectors;
-KL is not human answer accuracy. Top-1/ECE exclude target ties, whereas KL includes all rows, so denominators differ.
+用 `scripts/prepare_data.sh` 下载固定版本的语料和底座。评测样本用 Python `random.Random(7)` 抽取；
+训练时的验证集抽样用 seed 1，与评测不同。target 是给定的概率向量，KL 不等于人工标注的准确率。
+Top-1 / ECE 排除 target 并列最大的题，KL 统计全部题，所以分母不同。
 
 ```bash
-# Training checkpoint: fit on calibration, not test, then save temperatures beside the adapter.
+# 自己训练的 checkpoint：在 calibration 切分上拟合温度（不用 test），温度存到 adapter 旁边
 CKPT=runs/jev-4b/best OUT=eval/corpus-4b bash scripts/run_eval.sh
 BASE=models/Qwen3.8-27B CKPT=runs/jev-27b/best OUT=eval/corpus-27b bash scripts/run_eval.sh
 
-# Already-calibrated release: apply its temperatures,do not refit against test.
+# 已校准的发布模型：直接用它自带的温度，不要在 test 上重新拟合
 python -m trainjev.evaluate --base models/Qwen3.5-4B --adapter shibing624/train-jev-4b-lora --adapter_revision v0.2.0 \
   --data data/jev-distill-corpus-v3 --out eval/release-4b
 python scripts/compare_corpus.py release=eval/release-4b/summary.json
 ```
 
-`--fit_calibration` excludes placeholder rows and writes a local checkpoint's calibration file. Remote HF cache
-refitting is rejected; download to a writable directory first if needed. `--adapter_revision` pins an HF release.
-Historical 4B corpus batching was 24,576 tokens;27B used 8,192. Match `--batch_tokens` to reproduce the deployment
-implementation as well as weights. BF16 merging/batching may cause small numerical changes.
+`--fit_calibration` 会排除占位行，并把温度写进本地 checkpoint。不能对 HF 缓存里的模型重新拟合；需要的话先下载到可写目录。
+历史上 4B 语料评测的 batch 是 24,576 token，27B 是 8,192；要完全复现推理实现，`--batch_tokens` 也要对上。
+bf16 合并和批量推理可能带来很小的数值差异。
 
-In-distribution source splits share states with training, but the audit found no complete-prompt duplication.
-They do not establish new-state generalisation. OOD states were disjoint. New recipes need separate state/group
-and preferably source-disjoint development data; do not tune against the final OOD/test score.
+分布内的切分与训练集共享 state，但审计没有发现完整 prompt 重复；这些分数不能说明对新 state 的泛化。OOD 的 state 与训练集不重合。
+新配方需要单独的、state / 分组（最好来源也）不重合的开发集，不要对着最终的 OOD / test 分数调参。
 
-## 2. Serving protocol
+## 2. 推理服务的设置
 
 ```bash
 BASE=models/Qwen3.5-4B CKPT=runs/jev-4b/best PORT=8020 STRATEGY=tournament bash scripts/run_serve.sh
 ```
 
-Use `POST /v1/systemone`; the local backend is text-only. Readout strategy, batch token budget, max length, precision,
-calibration and model versions must be recorded. Historical train-jev-4b-lora / train-jev-27b-lora wide results use tournament; the original JEV
-reference uses single. The default server strategy is single, so defaults do not reproduce the historical wide score.
-For the native JEV `/v1/decide` backend, use its documented compatibility proxy; do not send scorer metadata as state.
+评测走 `POST /v1/systemone`；本地后端只处理文本。读法策略、batch token 预算、最大长度、精度、温度和模型版本都要记录下来。
+train-jev-4b-lora / train-jev-27b-lora 的历史宽选项结果用 `tournament`，原版 JEV 的参照用 `single`。
+服务默认是 `single`，所以用默认设置复现不了历史的宽选项分数。要接 JEV 原生的 `/v1/decide` 后端，请用文档里的兼容代理，
+不要把评分用的元数据当成 state 发过去。
 
-## 3. Decision Index: reproduce the old sample, not a different panel
+## 3. Decision Index：复现原有抽样
 
-Use the external code revision `f8552a13b643d39f61185f5951bb5fed16bedf51` for the recorded sampler/scorer:
+用外部仓库的固定 revision `f8552a13b643d39f61185f5951bb5fed16bedf51` 作为抽样器和评分器：
 
 ```bash
 git clone https://github.com/apolinario/decision-index third_party/decision-index
@@ -62,51 +61,45 @@ git -C third_party/decision-index checkout f8552a13b643d39f61185f5951bb5fed16bed
 pip install -e third_party/decision-index
 ```
 
-Rebuild/import the official 0.3 suite using that project's locked source revisions and documentation. Downloads can
-be large or require access; incomplete files are not valid suites. Use the upstream downloader or independently
-download pinned files and verify their official hashes before import; no local downloader patch is required here.
-HLE/HoVer are **not required model evaluations for our main
-legacy 35 result**; a complete 37 source suite can also produce exactly the same old sample by explicitly dropping them.
+按该项目锁定的数据版本和文档重建 / 导入官方 0.3 suite。下载量可能很大或需要申请权限，不完整的文件不是有效的 suite。
+用上游下载器，或者自行下载固定版本的文件并对照官方哈希校验后再导入。HLE / HoVer **不是我们 35 基准主结果的必需项**；
+完整的 37 基准 suite 显式去掉它们，也能得到完全相同的原有抽样。
 
 ```bash
 python scripts/di_sample.py --di_root third_party/decision-index --n 6000 \
-  --drop 45,61 --seed 20260919 --rows_out data/di_sample 6000.jsonl.gz \
-  --suite_out third_party/decision-index/suite-0.3-sample 6000
+  --drop 45,61 --seed 20260919 --rows_out data/di_sample6000.jsonl.gz \
+  --suite_out third_party/decision-index/suite-0.3-sample6000
 URL=http://127.0.0.1:8020 NAME=jev-4b bash scripts/run_decision_index.sh
 ```
 
-If the complete suite lives elsewhere, use `--source_suite PATH`. Existing outputs are not overwritten; use a new
-versioned path. The sampler takes whole groups round-robin across eligible catalogs, ranked by the hash of
-`seed:catalog:group`. The 6,000 input requests span 41 catalogs; the reported public index uses 35 indexed benchmarks
-after dropping 45(HLE)/61(HoVer), not all 41 as index components.
+完整 suite 放在别处时用 `--source_suite PATH` 指定。已有的输出不会被覆盖，请用新的带版本号的路径。
+抽样器在符合条件的 catalog 之间轮流抽取整组，按 `seed:catalog:group` 的哈希排序。6,000 个输入请求覆盖 41 个 catalog；
+公开指数只用去掉 45（HLE）/ 61（HoVer）后的 35 个计分基准，而不是 41 个都计入。
 
-`sampling_manifest.json` contains seed, catalog counts, ordered run-ID SHA256 and canonical model-input SHA256.
-Rebuilding from the complete 37 source with these settings was actually verified against the original sample:
-**all 6,000 ordered run IDs and all ordered state/questions payloads are identical** (fingerprints in the
-`sampling_manifest.json` the script writes). Gzip header/container bytes are not the equality test.
+`sampling_manifest.json` 记录种子、各 catalog 的数量、有序 run ID 的 SHA256 和规范化模型输入的 SHA256。
+已实际验证：用这些设置从完整的 37 基准 suite 重建，**全部 6,000 个有序 run ID 和有序的 state / questions 内容都与原抽样完全相同**。
+gzip 头部 / 容器字节不作为是否相同的判据。
 
-Score against the generated **sample-only suite**, not the full suite, otherwise unsampled requests count as missing.
-Do not claim this adjusted 35-index as the official complete leaderboard. `scripts/di_index.py` reads the official
-area specification and drops 45/61; a new 37 sample/full result needs a different declared protocol and matched
-reference rerun. Never fill missing benchmarks with guessed scores or silently ignore failed model requests.
+要对生成的**只含抽样的 suite** 评分，而不是完整 suite，否则没抽到的请求会被算成缺失。不要把这个调整过的 35 基准指数
+说成官方完整榜单。`scripts/di_index.py` 读取官方的领域划分并去掉 45 / 61；新的 37 基准抽样或全量结果需要另外声明协议，
+并重新跑参照模型。不要用猜的分数填补缺失的基准，也不要悄悄忽略失败的请求。
 
 ## 4. Kev transfer-v4
 
-Use the same frozen `transfer-v4` suite/source revision for every model; verify its IDs and input hashes. Obtain the
-Kev implementation/suite separately as documented by [jaredpalmer/kev](https://github.com/jaredpalmer/kev).
+所有模型都用同一份冻结的 `transfer-v4` suite 和来源 revision，并核对 ID 和输入哈希。Kev 的实现和 suite 按
+[jaredpalmer/kev](https://github.com/jaredpalmer/kev) 的说明另行获取。
 
 ```bash
-# In a pinned Kev checkout with the original suite available:
+# 在固定版本、带原始 suite 的 Kev 仓库里运行：
 python -m kev.benchmark --remote http://127.0.0.1:8020 --remote-concurrency 1 \
   --suite evals/v4/transfer-v4 --out eval/transfer-jev-4b
 ```
 
-Report clean 656-row accuracy, NLL, ECE separately from controls/variants (the recorded prediction metadata contains
-764 rows). `rows.json` here contains predictions/labels, not complete input text: it cannot prove decontamination.
-Label is an index into each row's keys, not necessarily a letter. Paired results require matching ID/question/label
-sets. McNemar significance on rows is not a substitute for training-seed or source-level variance.
+准确率、NLL、ECE 只统计 656 道干净题，与对照 / 变体题分开报告（记录下来的预测元数据共 764 行）。这里的 `rows.json`
+只有预测和标签，没有完整输入文本，不能用来证明没有污染。标签是每行选项 key 的下标，不一定是字母。
+配对比较要求 ID / 题目 / 标签集合一致；逐题的 McNemar 显著性不能代替训练种子或来源层面的方差。
 
-## 5. Vision
+## 5. 看图决策
 
 ```bash
 python -m trainjev.eval_vision --base models/Qwen3.5-4B --adapter runs/jev-4b/best \
@@ -115,13 +108,13 @@ python -m trainjev.eval_vision --base models/Qwen3.8-27B --adapter runs/jev-27b/
   --di_root third_party/decision-index --per_set 300 --out eval/vision-27b
 ```
 
-The external kit must have the 5 vision assets rebuilt. Actual coverage:CV-Bench/BLINK/RealWorldQA/CharXiv each 300,
-InfoVQA 244, total 1,444, not 1,500. Mean skill/accuracy is the equal mean of dataset metrics, not one pooled accuracy.
-Match image processing/size, precision and row IDs before comparing implementations. Text LoRA is merged into the
-VL language model; the vision tower was not trained. This is not the text HTTP route and not full multimodal HLE.
-The official DI 0.3 text adapter intentionally retains 501 HLE text-MC requests, not all 2,500 raw HLE questions.
+外部评测工具需要先重建 5 个视觉数据集。实际覆盖：CV-Bench / BLINK / RealWorldQA / CharXiv 各 300 题，InfoVQA 244 题，
+共 1,444 题而不是 1,500 题。mean skill / accuracy 是各数据集指标的等权平均，不是合并后的总准确率。
+对比不同实现前，图片处理 / 尺寸、精度和题目 ID 都要对齐。文本 LoRA 合并进 VL 模型的语言部分，视觉塔没有训练。
+这不是文本 HTTP 接口，也不是完整的多模态 HLE。官方 Decision Index 0.3 的文本适配器保留的是 501 道 HLE 文本选择题，
+不是全部 2,500 道原始 HLE 题。
 
-## 6. Classification PK and wide diagnostics
+## 6. 分类 PK 与宽选项
 
 ```bash
 python scripts/pk_build.py --out data/pk
@@ -133,21 +126,17 @@ python scripts/wide_build.py --out data/wide
 URL=http://127.0.0.1:8020 NAME=jev-4b SUITE=data/wide LIMIT=600 bash scripts/run_wide.sh
 ```
 
-Freeze dataset files/labels/SHA before comparing. PK uses label names(underscores replaced by spaces),text truncated
-to 4,000 characters and the recorded common question strings. Five-level rating tasks use choice over the five
-labels, not the trained six-level score protocol. Compare paired scenario/index/gold sets, not unrelated averages.
+对比前先冻结数据文件、标签和 SHA。PK 用标签名作为选项（下划线换成空格），文本截断到 4,000 个字符，并使用记录下来的统一题目文字。
+5 级评分任务按"在 5 个标签之间做选择"来问，而不是训练用的 6 级 `score` 协议。只比较场景 / 下标 / 标准答案都配对的结果，
+不要拿不相关的平均数比。
 
-Wide diagnostics record every actual strategy/option-order hash/model input size. Nine warm-up requests were
-excluded; an empty internal batching call is not a model forward. The observed permute gain and underconfidence
-are in results §7. Choose strategy/post-average calibration on independent dev and evaluate separately, not by
-fitting temperatures on these 600 test examples. A small smoke is not statistical evidence of SOTA.
+宽选项评测记录了每次请求实际用的策略、选项顺序哈希和模型输入长度；9 个预热请求不计入。permute 带来的准确率提升和
+置信度偏低见 [results.md §8](results.md#8-超过-16-个选项的选择题)。读法策略和平均后的温度要在独立的开发集上选，再单独评测，
+不要在这 600 道 test 题上拟合温度。
 
-## 7. What the package and reports do not claim
+## 7. 不做的声明
 
-- Fixed recipes and inputs are reproducible; cross-GPU/library/dtype/merge implementations are not bit-exact.
-- The old main result uses HF merged bf16 inference. The experimental vLLM 560-probe substitution failed its
-  probability threshold; its results cannot silently replace the reported probabilities.
-- A single seed and sample-based index do not prove superiority across deployments or the full/private board.
-- Public scripts do not contain raw datasets, private logs or checkpoints. Source licenses/access still apply.
-- HF package validation is not an evaluation. Upload completion, remote hash verification and a clean inference
-  check are separate release steps.
+- 固定的配方和输入可以复现；跨 GPU / 库版本 / 精度 / 合并方式的实现不保证逐位一致。
+- 主结果用 HF 合并后的 bf16 推理。实验性的 vLLM 后端没有通过概率一致性门槛，它的结果不能替换报告里的概率。
+- 单个训练种子和抽样指数不能证明在所有部署场景或完整 / 私有榜单上更优。
+- 公开的脚本不包含原始数据集、私有日志或 checkpoint；数据来源的许可和访问限制依然适用。

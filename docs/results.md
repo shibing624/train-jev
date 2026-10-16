@@ -1,23 +1,24 @@
-# Results
+# 评测结果
 
-Results for the two released models, **train-jev-4b-lora** and **train-jev-27b-lora** (5,123 steps each, temperatures
-fitted on the `calibration` split). Every comparison in a table uses the same rows for every model. Reference models
-were run by us on the same hardware (one NVIDIA H20 each) unless marked *board* or *reported*.
+[English](results.en.md)
 
-| Model | What it is |
+两个发布模型 **train-jev-4b-lora** 和 **train-jev-27b-lora** 的评测结果（各训练 5,123 步，温度在 `calibration` 切分上拟合）。
+同一张表里所有模型都用完全相同的题目。除标注为*榜单*或*报告值*的以外，参照模型都由我们在相同硬件（每个模型一张 NVIDIA H20）上运行。
+
+| 模型 | 说明 |
 |---|---|
-| Qwen3.5-4B (untrained) | base model + head initialised from `lm_head` (the step-0 model; a zero-shot restricted readout) |
-| Kev-4B | [jaredpalmer/kev](https://github.com/jaredpalmer/kev) 4B release, served with `kev.serve` |
-| **train-jev-4b-lora** | [shibing624/train-jev-4b-lora](https://huggingface.co/shibing624/train-jev-4b-lora), Qwen3.5-4B + LoRA (this repository) |
-| **train-jev-27b-lora** | [shibing624/train-jev-27b-lora](https://huggingface.co/shibing624/train-jev-27b-lora), Qwen3.8-27B + LoRA (this repository) |
-| JEV-27B-VL | [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL), served with its own `serve_decide.py` (System 1, thinking off) |
-| Jev 1.13 | TypeSafe's hosted API |
+| Qwen3.5-4B（未训练） | 底座 + 从 `lm_head` 初始化的决策头（即第 0 步的模型，相当于零样本的受限读出） |
+| Kev-4B | [jaredpalmer/kev](https://github.com/jaredpalmer/kev) 发布的 4B 模型，用 `kev.serve` 部署 |
+| **train-jev-4b-lora** | [shibing624/train-jev-4b-lora](https://huggingface.co/shibing624/train-jev-4b-lora)，Qwen3.5-4B + LoRA（本仓库） |
+| **train-jev-27b-lora** | [shibing624/train-jev-27b-lora](https://huggingface.co/shibing624/train-jev-27b-lora)，Qwen3.8-27B + LoRA（本仓库） |
+| JEV-27B-VL | [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL)，用它自带的 `serve_decide.py` 部署（System 1，关闭 thinking） |
+| Jev 1.13 | TypeSafe 的托管 API |
 
-## 1. Training trajectory
+## 1. 训练曲线（train-jev-4b-lora）
 
-Validation KL on the fixed 4,000-row subset (`--val_n 4000`, seed 1), every 500 steps. 3× H20, `--no_gc --micro_tokens 4096`.
+固定 4,000 行验证子集（`--val_n 4000`，seed 1）上的验证 KL，每 500 步一次。3×H20，`--no_gc --micro_tokens 4096`。
 
-| step | rows seen | val KL | noul KL | score KL | choice KL | choice top-1 | elapsed |
+| step | 已见样本 | 验证 KL | noul KL | score KL | choice KL | choice top-1 | 耗时 |
 |---:|---:|---:|---:|---:|---:|---:|---:|
 | 500 | 64k | 0.0604 | 0.027 | 0.061 | 0.128 | 0.850 | 0.29 h |
 | 1000 | 128k | 0.0414 | 0.015 | 0.049 | 0.088 | 0.864 | 0.56 h |
@@ -31,109 +32,102 @@ Validation KL on the fixed 4,000-row subset (`--val_n 4000`, seed 1), every 500 
 | 5000 | 640k | 0.0161 | 0.003 | 0.022 | 0.037 | 0.924 | 2.70 h |
 | **5123** | 656k | **0.0160** | 0.003 | 0.022 | 0.037 | 0.927 | 2.77 h |
 
-The JEV-27B card reports val KL 0.058 at step 500 and 0.017 at the released step 5,000; the 4B curve tracks it closely.
-Fitted temperatures: noul 1.008, choice 1.004, score 0.998 (JEV-27B: 1.014 / 1.016 / 1.004). Values this close to 1
-mean the KL objective already produces calibrated distributions.
+JEV-27B 模型卡报告的验证 KL 是第 500 步 0.058、发布的第 5,000 步 0.017，4B 的曲线与之高度吻合。
+拟合出的温度：noul 1.008、choice 1.004、score 0.998（JEV-27B：1.014 / 1.016 / 1.004）。温度这么接近 1，
+说明 KL 目标本身就已经产出了校准良好的分布。
 
-## 2. jev-distill-corpus-v3 (in-distribution and OOD)
+## 2. jev-distill-corpus-v3（分布内与分布外）
 
-`test_set_30k`: 6,000-row fixed subset (seed 7). `ood`: 3,000-row fixed subset of Open-Jev task families never seen in
-training, with programmatic labels. "Jev-labelled" = rows whose targets are Jev 1.13's own distributions (`yuri_v3`).
-Calibrated metrics; `choice` rows with > 16 options are excluded.
+`test_set_30k`：固定抽取的 6,000 行子集（seed 7）。`ood`：固定抽取的 3,000 行子集，来自训练时从未见过的 Open-Jev 任务族，
+标签由程序生成。"Jev 标注" 指 target 是 Jev 1.13 自己输出分布的那部分题（`yuri_v3`）。指标均为校准后；
+超过 16 个选项的 `choice` 题不计入。
 
-| split | model | KL | KL (Jev-labelled) | noul top-1 | noul AUROC | choice top-1 | score top-1 | score MAE |
+| 切分 | 模型 | KL | KL（Jev 标注） | noul top-1 | noul AUROC | choice top-1 | score top-1 | score MAE |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
-| test_set_30k | Qwen3.5-4B (untrained) | 0.637 | 0.658 | 0.689 | 0.816 | 0.511 | 0.019 | 1.371 |
+| test_set_30k | Qwen3.5-4B（未训练） | 0.637 | 0.658 | 0.689 | 0.816 | 0.511 | 0.019 | 1.371 |
 | | Kev-4B | 0.387 | 0.364 | 0.781 | 0.861 | 0.575 | 0.334 | 0.779 |
-| | **train-jev-4b-lora** | **0.022** | **0.018** | **0.962** | **0.995** | **0.908** | **0.897** | **0.104** |
+| | **train-jev-4b-lora** | 0.022 | 0.018 | 0.962 | 0.995 | 0.908 | 0.897 | 0.104 |
 | | JEV-27B-VL | 0.021 | 0.017 | 0.969 | 0.996 | 0.908 | 0.894 | 0.098 |
-| | train-jev-27b-lora | 0.019 | 0.016 | 0.968 | 0.996 | 0.916 | 0.905 | 0.096 |
-| ood | Qwen3.5-4B (untrained) | 0.884 | – | 0.542 | 0.558 | 0.413 | 0.000 | 1.227 |
+| | **train-jev-27b-lora** | **0.019** | **0.016** | 0.968 | **0.996** | **0.916** | **0.905** | **0.096** |
+| ood | Qwen3.5-4B（未训练） | 0.884 | – | 0.542 | 0.558 | 0.413 | 0.000 | 1.227 |
 | | Kev-4B | 0.624 | – | 0.768 | 0.703 | 0.642 | 0.471 | 0.389 |
-| | **train-jev-4b-lora** | **0.311** | – | **0.932** | **0.982** | **0.888** | 0.588 | 0.390 |
-| | JEV-27B-VL | 0.108 | – | 0.970 | 0.995 | 0.913 | 0.588 | 0.432 |
-| | train-jev-27b-lora | 0.110 | – | 0.974 | 0.996 | 0.935 | 0.647 | 0.367 |
+| | **train-jev-4b-lora** | 0.311 | – | 0.932 | 0.982 | 0.888 | 0.588 | 0.390 |
+| | JEV-27B-VL | **0.108** | – | 0.970 | 0.995 | 0.913 | 0.588 | 0.432 |
+| | **train-jev-27b-lora** | 0.110 | – | **0.974** | **0.996** | **0.935** | **0.647** | **0.367** |
 
-*Reported* by the JEV-27B card on the full splits: KL 0.019 (all), ≈ 0.017 (Jev-labelled), OOD KL 0.104.
+JEV-27B 模型卡在完整切分上的*报告值*：KL 0.019（全部）、约 0.017（Jev 标注）、OOD KL 0.104。
 
-In distribution the 4B model is essentially indistinguishable from the 27B one; the gap opens on OOD task families
-(0.311 vs 0.108).
+分布内 4B 和 27B 几乎没有差别；差距出现在分布外的任务族上（4B 0.311，27B 0.110）。
 
-## 3. Decision Index 0.3 (public benchmarks)
+## 3. Decision Index 0.3（公开基准）
 
-[apolinario/decision-index](https://github.com/apolinario/decision-index), edition 0.3. We score a 6,000-row stratified
-sample (round-robin over benchmarks, whole groups, the kit's default seed) and build a sample-only suite so the
-official scorer computes coverage over the sample (`scripts/di_sample.py`). Every model answers the same 6,000 rows
-through the same `/v1/systemone` HTTP engine.
+[apolinario/decision-index](https://github.com/apolinario/decision-index) 0.3 版。我们对 6,000 行分层抽样评分
+（在各基准之间轮流抽取整组，使用工具默认种子），并生成只含抽样的 suite，让官方评分器按抽样计算覆盖率
+（`scripts/di_sample.py`）。所有模型都通过同一个 `/v1/systemone` HTTP 引擎回答这 6,000 道题。
 
-Two of the 37 benchmarks in the 0.3 public index could not be rebuilt in our environment: **HLE** (gated on the HF Hub) and **HoVer**
-(a 2 GB Wikipedia download). They are removed from their areas and the remaining benchmarks renormalised
-(`scripts/di_index.py`); the board's published per-benchmark skills are re-scored on the same 35-benchmark panel, so
-every row below is comparable, but **none of them equals the official Decision Index total**.
+0.3 公开指数的 37 个基准中，有两个在我们的环境里无法重建：**HLE**（HF Hub 上需要申请权限）和 **HoVer**（需要下载 2 GB 的
+Wikipedia）。它们被从所属领域中去掉，其余基准重新归一化（`scripts/di_index.py`）；榜单公布的各基准分数也在同样的 35 基准面板上
+重新计算，所以下表每一行都可以互相比较，但**都不等于官方的 Decision Index 总分**。
 
-| model | index (35) | Knowledge & Reasoning | Language | Retrieval & Classification | Tools & Automation | Arts & Taste |
+| 模型 | 指数（35） | 知识与推理 | 语言 | 检索与分类 | 工具与自动化 | 艺术与品味 |
 |---|---:|---:|---:|---:|---:|---:|
-| Kev-4B (ours, sample) | 38.43 | 0.314 | 0.355 | 0.457 | 0.565 | 0.166 |
-| **train-jev-4b-lora (ours, sample)** | **40.35** | 0.322 | 0.394 | 0.415 | 0.584 | 0.287 |
-| JEV-27B-VL (ours, sample) | 54.11 | 0.452 | 0.534 | 0.549 | 0.739 | 0.413 |
-| **train-jev-27b-lora (ours, sample)** | **54.57** | 0.438 | 0.552 | 0.567 | 0.737 | 0.415 |
-| *Kev 4B r10 (board)* | *39.53* | 0.292 | 0.418 | 0.466 | 0.550 | 0.179 |
-| *Sieve 4B (board)* | *51.45* | 0.377 | 0.539 | 0.637 | 0.667 | 0.283 |
-| *ezjev 4B s2 (board)* | *52.87* | 0.344 | 0.605 | 0.621 | 0.699 | 0.312 |
-| *vLLM-SR d3-mini 4B (board)* | *56.06* | 0.443 | 0.578 | 0.637 | 0.720 | 0.377 |
-| *JEV-27B (board)* | *55.04* | 0.460 | 0.564 | 0.548 | 0.734 | 0.416 |
-| *Kev 27B (board)* | *58.58* | 0.507 | 0.626 | 0.586 | 0.726 | 0.427 |
-| *Jev 1.13 (board)* | *59.72* | 0.593 | 0.592 | 0.572 | 0.751 | 0.391 |
+| Kev-4B（我们实测，抽样） | 38.43 | 0.314 | 0.355 | 0.457 | 0.565 | 0.166 |
+| **train-jev-4b-lora（我们实测，抽样）** | **40.35** | 0.322 | 0.394 | 0.415 | 0.584 | 0.287 |
+| JEV-27B-VL（我们实测，抽样） | 54.11 | 0.452 | 0.534 | 0.549 | 0.739 | 0.413 |
+| **train-jev-27b-lora（我们实测，抽样）** | **54.57** | 0.438 | 0.552 | 0.567 | 0.737 | 0.415 |
+| *Kev 4B r10（榜单）* | *39.53* | 0.292 | 0.418 | 0.466 | 0.550 | 0.179 |
+| *Sieve 4B（榜单）* | *51.45* | 0.377 | 0.539 | 0.637 | 0.667 | 0.283 |
+| *ezjev 4B s2（榜单）* | *52.87* | 0.344 | 0.605 | 0.621 | 0.699 | 0.312 |
+| *vLLM-SR d3-mini 4B（榜单）* | *56.06* | 0.443 | 0.578 | 0.637 | 0.720 | 0.377 |
+| *JEV-27B（榜单）* | *55.04* | 0.460 | 0.564 | 0.548 | 0.734 | 0.416 |
+| *Kev 27B（榜单）* | *58.58* | 0.507 | 0.626 | 0.586 | 0.726 | 0.427 |
+| *Jev 1.13（榜单）* | *59.72* | 0.593 | 0.592 | 0.572 | 0.751 | 0.391 |
 
-Sanity check of the sampled protocol: our Kev-4B is 38.4 against the board's 39.5, and our JEV-27B-VL is 54.1 against
-the board's JEV-27B at 55.0. The sample is accurate to about a point at the index level; individual benchmarks
-on ~150 rows each are noisy.
+抽样协议的合理性检查：我们实测的 Kev-4B 为 38.4，榜单为 39.5；我们实测的 JEV-27B-VL 为 54.1，榜单上的 JEV-27B 为 55.0。
+抽样在指数层面的误差约 1 分；单个基准只有约 150 题，噪声较大。
 
-**Reading.** train-jev-4b-lora and Kev-4B are in the same tier (≈ 40). The leading 4B models are 11–16 points higher, with
-most of the gap in Knowledge & Reasoning and Language Understanding. This is the motivation for the TODO on full
-fine-tuning with broader public gold data.
+**解读。** train-jev-4b-lora 和 Kev-4B 在同一档（约 40 分）。领先的 4B 模型高 11–16 分，差距主要在知识与推理、语言理解上；
+要补上这部分差距需要更广的金标数据（见 Roadmap）。train-jev-27b-lora 与 JEV-27B-VL 持平（54.6 对 54.1）。
 
 ## 4. Kev transfer-v4
 
-`evals/v4/transfer-v4` from [jaredpalmer/kev](https://github.com/jaredpalmer/kev): 656 questions from sources Kev never
-trained on, run with `python -m kev.benchmark --remote <server>`.
+来自 [jaredpalmer/kev](https://github.com/jaredpalmer/kev) 的 `evals/v4/transfer-v4`：656 道题，来源都是 Kev 训练时没见过的，
+用 `python -m kev.benchmark --remote <server>` 运行。
 
-| model | accuracy | ECE | NLL |
+| 模型 | 准确率 | ECE | NLL |
 |---|---:|---:|---:|
 | Kev-4B | 0.817 | **0.042** | 0.435 |
 | train-jev-4b-lora | 0.779 | 0.075 | 0.745 |
 | JEV-27B-VL | **0.852** | 0.097 | 0.460 |
 | train-jev-27b-lora | 0.851 | 0.053 | **0.411** |
-| *Jev 1.13 (reported in the Kev repo)* | *0.857* | | |
+| *Jev 1.13（Kev 仓库的报告值）* | *0.857* | | |
 
-Kev's recipe (trained on gold labels close to these task types) is stronger here, especially on rule-composition
-questions; train-jev's distillation recipe stays closer to Jev's distributions.
+在 4B 尺寸上 Kev 的配方（用与这些任务类型接近的金标数据训练）更强，尤其是规则组合类的题；train-jev 的蒸馏配方更贴近 Jev 的分布。
+27B 上 train-jev-27b-lora 与 JEV-27B-VL 准确率持平，校准明显更好（ECE 0.053 对 0.097）。
 
-## 5. Zero-shot image decisions
+## 5. 零样本看图决策
 
-Five public Decision Index vision sets, 300 items each (first 300 by `sha256(id)`), choice questions, chance-corrected
-skill. The LoRA and head were trained on **text only**; for images we load the full Qwen3.5 VL model, merge the LoRA
-into its language model, and leave the vision tower untouched (`trainjev/eval_vision.py`).
+Decision Index 的 5 个公开视觉集合，每个最多 300 题（按 `sha256(id)` 取前 300），都是选择题，指标为扣除随机猜测后的 skill。
+LoRA 和决策头**只用文本训练**；处理图像时加载完整的 Qwen VL 模型，把 LoRA 合并进语言部分，视觉塔保持不变（`trainjev/eval_vision.py`）。
 
-| model | CV-Bench | BLINK | RealWorldQA | CharXiv | InfoVQA | mean skill | mean acc |
+| 模型 | CV-Bench | BLINK | RealWorldQA | CharXiv | InfoVQA | mean skill | mean acc |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Qwen3.5-4B (untrained) | 0.682 | 0.454 | 0.510 | 0.667 | 0.847 | 0.632 | 0.758 |
-| **train-jev-4b-lora** | 0.732 | 0.506 | 0.608 | 0.729 | 0.913 | **0.697** | 0.802 |
-| JEV-27B-VL | 0.743 | 0.634 | 0.711 | 0.849 | 0.973 | 0.782 | 0.859 |
+| Qwen3.5-4B（未训练） | 0.682 | 0.454 | 0.510 | 0.667 | 0.847 | 0.632 | 0.758 |
+| **train-jev-4b-lora** | 0.732 | 0.506 | 0.608 | 0.729 | 0.913 | 0.697 | 0.802 |
+| JEV-27B-VL | 0.743 | **0.634** | **0.711** | **0.849** | **0.973** | **0.782** | **0.859** |
 | **train-jev-27b-lora** | **0.770** | 0.568 | 0.673 | 0.822 | 0.967 | 0.760 | 0.844 |
 
-Text-only distillation improves every vision set (+6.5 points mean skill), i.e. what the head learns about *how to
-decide* transfers across modalities. Kev drops the vision tower at load time and cannot take images.
+只用文本蒸馏，4B 在每个视觉集合上都有提升（mean skill +6.5 分），说明决策头学到的"怎么做决策"能跨模态迁移。
+Kev 在加载时丢掉了视觉塔，不能处理图像。
 
-## 6. 13-dataset classification PK
+## 6. 13 数据集分类 PK
 
-1,300 rows (the first 100 of each scenario after a seed-0 shuffle) from 13 public datasets. Every system gets the same
-text (first 4,000 characters), the dataset's label names and one fixed question per primitive; there is no per-task
-prompt engineering. `scripts/pk_build.py` rebuilds the suite byte-for-byte from the Hugging Face Hub, and
-`scripts/pk_benchmark.py` runs any `/v1/systemone` endpoint and prints the paired report. Re-running train-jev-4b-lora
-through the released script reproduces the stored probabilities (max |Δp| 6e-8).
+来自 13 个公开数据集的 1,300 题（每个场景 seed 0 打乱后取前 100 题）。所有系统拿到相同的文本（前 4,000 个字符）、
+数据集的标签名，以及每种题型一个固定的问题，不针对任务做 prompt 工程。`scripts/pk_build.py` 从 Hugging Face Hub
+逐字节重建题库，`scripts/pk_benchmark.py` 可以测试任意 `/v1/systemone` 服务并输出配对报告。用公开脚本重跑
+train-jev-4b-lora 能复现存档的概率（最大 |Δp| 6e-8）。
 
-| scenario | primitive | lang | labels | source | in Kev's training sources |
+| 场景 | 题型 | 语言 | 标签数 | 来源 | Kev 是否训过该来源 |
 |---|---|---|---:|---|:---:|
 | ag_news | choice | en | 4 | `fancyzhx/ag_news` test | ✓ |
 | dair_emotion | choice | en | 6 | `dair-ai/emotion` test | |
@@ -145,271 +139,168 @@ through the released script reproduces the stored probabilities (max |Δp| 6e-8)
 | yelp_stars | score | en | 5 | `Yelp/yelp_review_full` test | ✓ |
 | boolq | boolean | en | 2 | `google/boolq` validation | ✓ |
 | prompt_injection | boolean | en | 2 | `deepset/prompt-injections` test | |
-| toxicity | boolean | en | 2 | `google/civil_comments` test (balanced 50/50) | |
+| toxicity | boolean | en | 2 | `google/civil_comments` test（正负各半） | |
 
-| | Jev 1.13 (API) | JEV-27B-VL | Kev-4B | **train-jev-4b-lora** | train-jev-27b-lora |
+| | Jev 1.13（API） | JEV-27B-VL | Kev-4B | **train-jev-4b-lora** | **train-jev-27b-lora** |
 |---|---:|---:|---:|---:|---:|
-| accuracy | 0.700 | 0.690 | 0.640 | 0.647 | **0.678** |
-| 95% CI | [0.675, 0.724] | [0.664, 0.715] | [0.614, 0.666] | [0.621, 0.672] | [0.652, 0.703] |
+| 准确率 | **0.700** | 0.690 | 0.640 | 0.647 | 0.678 |
+| 95% 置信区间 | [0.675, 0.724] | [0.664, 0.715] | [0.614, 0.666] | [0.621, 0.672] | [0.652, 0.703] |
 | ECE | 0.130 | 0.094 | 0.083 | **0.076** | 0.103 |
-| p50 latency | 370 ms (incl. network) | 96 ms | 17 ms | 43 ms | 82 ms |
-| choice (n=800) | 0.739 | 0.738 | 0.685 | 0.701 | **0.725** |
-| score (n=200) | 0.695 | 0.655 | 0.610 | 0.575 | 0.630 |
-| boolean (n=300) | 0.600 | 0.587 | 0.540 | 0.550 | **0.583** |
-| Kev-seen sources (5 scenarios, n=500) | 0.788 | 0.762 | 0.752 | 0.718 | **0.754** |
-| **Kev-unseen sources (8 scenarios, n=800)** | 0.645 | 0.645 | 0.570 | 0.603 | **0.630** |
+| p50 延迟 | 370 ms（含网络） | 96 ms | **17 ms** | 43 ms | 82 ms |
+| choice（800 题） | **0.739** | 0.738 | 0.685 | 0.701 | 0.725 |
+| score（200 题） | **0.695** | 0.655 | 0.610 | 0.575 | 0.630 |
+| boolean（300 题） | **0.600** | 0.587 | 0.540 | 0.550 | 0.583 |
+| Kev 训过的来源（5 个场景，500 题） | **0.788** | 0.762 | 0.752 | 0.718 | 0.754 |
+| **Kev 没见过的来源（8 个场景，800 题）** | **0.645** | **0.645** | 0.570 | 0.603 | 0.630 |
 
-Per scenario:
+分场景结果：
 
-| scenario | Jev 1.13 | JEV-27B-VL | Kev-4B | train-jev-4b-lora | train-jev-27b-lora |
+| 场景 | Jev 1.13 | JEV-27B-VL | Kev-4B | train-jev-4b-lora | train-jev-27b-lora |
 |---|---:|---:|---:|---:|---:|
-| ag_news ✓ | 0.86 | 0.85 | 0.87 | 0.89 | 0.87 |
-| banking77 ✓ | 0.81 | 0.75 | 0.81 | 0.69 | 0.73 |
+| ag_news ✓ | 0.86 | 0.85 | 0.87 | **0.89** | 0.87 |
+| banking77 ✓ | **0.81** | 0.75 | **0.81** | 0.69 | 0.73 |
 | boolq ✓ | 0.88 | 0.90 | 0.86 | 0.86 | **0.91** |
-| sst5 ✓ | 0.70 | 0.62 | 0.49 | 0.51 | 0.58 |
-| yelp_stars ✓ | 0.69 | 0.69 | 0.73 | 0.64 | 0.68 |
-| dair_emotion | 0.50 | 0.51 | 0.52 | 0.53 | 0.51 |
-| massive_en | 0.86 | 0.83 | 0.60 | 0.73 | 0.77 |
-| massive_zh | 0.77 | 0.77 | 0.59 | 0.66 | 0.72 |
-| prompt_injection | 0.46 | 0.44 | 0.32 | 0.34 | 0.42 |
-| tnews_zh | 0.48 | 0.49 | 0.50 | 0.49 | 0.50 |
-| toxicity | 0.46 | 0.42 | 0.44 | 0.45 | 0.42 |
-| xnli_en | 0.89 | 0.91 | 0.86 | 0.88 | **0.91** |
-| xnli_zh | 0.74 | 0.79 | 0.73 | 0.74 | 0.79 |
+| sst5 ✓ | **0.70** | 0.62 | 0.49 | 0.51 | 0.58 |
+| yelp_stars ✓ | 0.69 | 0.69 | **0.73** | 0.64 | 0.68 |
+| dair_emotion | 0.50 | 0.51 | 0.52 | **0.53** | 0.51 |
+| massive_en | **0.86** | 0.83 | 0.60 | 0.73 | 0.77 |
+| massive_zh | **0.77** | **0.77** | 0.59 | 0.66 | 0.72 |
+| prompt_injection | **0.46** | 0.44 | 0.32 | 0.34 | 0.42 |
+| tnews_zh | 0.48 | 0.49 | **0.50** | 0.49 | **0.50** |
+| toxicity | **0.46** | 0.42 | 0.44 | 0.45 | 0.42 |
+| xnli_en | 0.89 | **0.91** | 0.86 | 0.88 | **0.91** |
+| xnli_zh | 0.74 | **0.79** | 0.73 | 0.74 | **0.79** |
 
-On the sources Kev was not trained on, train-jev-4b-lora leads Kev-4B by 3.3 points, and it is the best calibrated of the
-four overall. Its weak spot is many-class intent sets (BANKING77 0.69 vs 0.81 for Jev; MASSIVE en 0.73 vs 0.86). Each
-cell is 100 rows (±~9 points at 95%), so read single scenarios with care.
+在 Kev 没训过的来源上，train-jev-4b-lora 比 Kev-4B 高 3.3 个百分点，整体 ECE 是所有模型里最低的。它的弱项是类别很多的意图分类
+（BANKING77 0.69，Jev 0.81；MASSIVE en 0.73，Jev 0.86）。每格只有 100 题（95% 置信区间约 ±9 个百分点），单个场景的结果请谨慎解读。
 
-## 7. Notes on the protocol
+## 7. 评测协议说明
 
-- **Batched vs single inference.** The server batches the questions of a request by length in bf16. Compared with
-  one-at-a-time inference this flips 6 of 816 answers in our check (max |Δp| 0.02). All Decision Index numbers for
-  train-jev-4b-lora come from the batched server, run from scratch.
-- **Latency** is server wall time on one H20 with HF transformers (no CUDA graphs, no fused kernels beyond fla), one
-  request at a time. The Jev 1.13 figure is a third-party measurement of the hosted API and includes the network.
-- **Reproducibility.** The code in this repository was checked against the original experiment code on the same
-  inputs: identical training loss for the first 11 steps, identical evaluation logits on all 9,000 corpus rows, and
-  identical server and vision outputs (|Δ| = 0).
+- **批量推理与逐题推理。** 服务把一个请求里的多道题按长度分批、用 bf16 推理。与逐题推理相比，我们的检查中 816 个答案里有 6 个变了
+  （最大 |Δp| 0.02）。train-jev-4b-lora 的 Decision Index 分数全部来自批量推理的服务，从头重跑得到。
+- **延迟** 是单张 H20 上用 HF transformers 推理的服务端耗时（没有 CUDA graph，除 fla 外没有融合算子），一次一个请求。
+  Jev 1.13 的数字是第三方对托管 API 的测量，包含网络时间。
+- **可复现性。** 本仓库代码与原始实验代码在相同输入上做过对比：前 11 步训练 loss 完全一致，9,000 行语料的评测 logits 完全一致，
+  服务和看图输出也完全一致（|Δ| = 0）。
 
-## 7. Wide-choice questions (17–256 options)
+## 8. 超过 16 个选项的选择题
 
-How the many-class PK scenarios were read, and what is known so far (100 rows each, GPU, from the PK runs above):
+PK 里类别很多的场景是怎么读的，以及目前已知的结果（各 100 题，GPU，来自上面的 PK 评测）：
 
-| scenario | options | JEV-27B-VL (`single`) | ECE | train-jev-4b-lora (`tournament`) | ECE |
+| 场景 | 选项数 | JEV-27B-VL（`single`） | ECE | train-jev-4b-lora（`tournament`） | ECE |
 |---|---:|---:|---:|---:|---:|
 | banking77 | 77 | 0.75 | 0.101 | 0.69 | 0.153 |
 | massive_en | 59 | 0.83 | 0.051 | 0.73 | 0.107 |
 | massive_zh | 59 | 0.77 | 0.064 | 0.66 | 0.063 |
 
-The two columns differ in both model size and read-out strategy, so this table does not isolate the strategy. JEV's
-model card reports `single` on JEV-27B-VL down to 150 options (CLINC150, all intents: 89.5% names only, 93.8% with a
-one-line description; ECE 0.079 / 0.034).
+两列的模型大小和读法都不同，所以这张表分不出读法的影响。JEV 的模型卡报告了 JEV-27B-VL 用 `single` 读到 150 个选项的结果
+（CLINC150 全部意图：只给意图名 89.5%，再加一句描述 93.8%；ECE 0.079 / 0.034）。
 
-Checks done for train-jev-4b-lora:
+### 同一 checkpoint 的三种读法对比
 
-- The `tournament` path of the new server reproduces the stored GPU PK run on CPU fp32 (8/8 BANKING77 predictions,
-  max |Δp| 0.0027).
-- `single` and `tournament` disagree on 2 of the same 8 BANKING77 rows (both 7/8 correct), so the choice matters.
-- `single` takes one pass instead of ⌈n/16⌉ + 1 (6 for BANKING77, 11 for CLINC150).
+train-jev-4b-lora，相同的 checkpoint 和温度，一张 H20，逐个请求，固定 seed 0 的测试样本：CLINC150 / BANKING77 / MASSIVE en
+各 600 题（每种读法共 1,800 题）。输入只有读法不同；请求日志核对了实际的选项顺序和 token 数。不计 9 个预热请求。
+BANKING77 / MASSIVE 的输入文件与 PK 的 600 题题库一致。
 
-### Same-checkpoint GPU comparison (2026-10-16)
-
-Qwen3.5-4B LoRA A, the same checkpoint/calibration, one H20, serial requests, fixed seed-0 test samples:
-600 each from CLINC150 / BANKING77 / MASSIVE en (1,800 total per strategy). Inputs differ only in strategy;
-request traces verify actual option orders/token counts, and source/checkpoint/input SHA256 values did not change.
-Nine warm-up requests are excluded. BANKING77/MASSIVE input files match the existing PK 600-row pools.
-
-| strategy | CLINC150 acc | BANKING77 acc | MASSIVE en acc | overall acc | ECE | p50 ms |
+| 读法 | CLINC150 准确率 | BANKING77 准确率 | MASSIVE en 准确率 | 总准确率 | ECE | p50 ms |
 |---|---:|---:|---:|---:|---:|---:|
 | single | 0.7850 | 0.6300 | 0.7650 | 0.7267 | 0.1622 | 52.3 |
 | tournament | 0.8383 | 0.6533 | 0.7050 | 0.7322 | **0.0499** | 108.9 |
 | permute | **0.8633** | **0.6750** | **0.7750** | **0.7711** | 0.2180 | 171.2 |
 
-Permute vs single has 130/50 uniquely correct rows (net +80/1,800, +4.44 pp; exact McNemar p=2.13e-9).
-Tournament vs single has 131/121 (net +10, p=0.571): this sample does not establish an overall accuracy advantage.
-On MASSIVE en, tournament is 6 pp below single (p=4.37e-5), so it is not uniformly better.
-Permute's mean confidence is 0.553 against accuracy 0.771: its worse ECE is primarily underconfidence,
-not evidence of overconfidence. No temperatures were fitted on these test labels.
+- permute 对 single：各自独有正确 130 / 50 题（净 +80 / 1,800，+4.44 个百分点；精确 McNemar p=2.13e-9）。
+- tournament 对 single：131 / 121（净 +10，p=0.571），这组样本不能说明 tournament 总体更准；在 MASSIVE en 上 tournament
+  比 single 低 6 个百分点（p=4.37e-5），并非处处更好。
+- permute 的平均置信度 0.553，准确率 0.771：它的 ECE 较差主要是因为置信度偏低，而不是过度自信。没有在这些测试标签上拟合温度。
 
-These are exploratory same-checkpoint results, not training gains. Keep the default unchanged until independent
-development-set strategy/calibration selection and a separate final check; post-average temperature scaling can
-be tested on dev without changing argmax, rather than tuning against these 600-row test samples. Latency includes
-HTTP/observer overhead with the existing GPU occupier left running, not isolated-hardware throughput.
+这些是同一个 checkpoint 上的探索性结果，不是训练带来的提升。默认读法暂不改变，要等到在独立开发集上选定读法和温度、
+再单独做一次最终检查。延迟包含 HTTP 和日志开销，且当时 GPU 上还有别的进程，不代表独占硬件的吞吐。
 
-## 8. 4B 全参训练与 LoRA 对照（2026-10-14）
+## 9. 4B 全参训练与 LoRA 对比
 
-底座均为 Qwen3.5-4B，使用同一份 jev-distill-corpus-v3、全局 batch 128、相同损失、采样和选项置换，
-训练 5,123 步；按固定 4,000 行验证集的最低 KL 选择 checkpoint，两者均选中第 5,123 步。
-LoRA 使用 r16、学习率 1e-4，3×H20；全参更新文本底座全部参数，使用学习率 2e-6，4×H20、FSDP2。
-两者决策头学习率均为 2e-4，micro-token budget 均为 4,096，均关闭 gradient checkpointing。
-视觉塔未参与训练。以下是实际产物的评测结果，不是学习率探针的结果。
+两次训练都用 Qwen3.5-4B、同一份 jev-distill-corpus-v3、全局 batch 128、相同的损失、采样和选项置换，训练 5,123 步，
+按固定 4,000 行验证集上 KL 最低选 checkpoint（两者都选中第 5,123 步）。LoRA：r16，学习率 1e-4，3×H20。
+全参：更新文本底座的全部参数，学习率 2e-6，4×H20，FSDP2。两者决策头学习率都是 2e-4，micro-token 预算都是 4,096，
+都关闭 gradient checkpointing，视觉塔都不训练。
 
-| 指标 | 4B LoRA | 4B 全参 | 方向 |
+| 指标 | 4B LoRA | 4B 全参 | |
 |---|---:|---:|:---:|
-| 最佳 validation KL（4,000 行） | 0.0160 | 0.0162 | ↓ |
+| 最佳验证 KL（4,000 行） | **0.0160** | 0.0162 | ↓ |
 | test_set_30k KL（6,000 行，校准后） | 0.02239 | **0.02174** | ↓ |
 | OOD KL（3,000 行，校准后） | **0.31073** | 0.46604 | ↓ |
-| Decision Index 0.3，35 基准重算（6,000 行） | **40.35** | 37.52 | ↑ |
-| transfer-v4 accuracy（656 行） | **0.77896** | 0.76220 | ↑ |
+| Decision Index 0.3，35 基准抽样（6,000 行） | **40.35** | 37.52 | ↑ |
+| transfer-v4 准确率（656 行） | **0.77896** | 0.76220 | ↑ |
 | transfer-v4 ECE | 0.07468 | **0.06520** | ↓ |
 | transfer-v4 NLL | 0.74455 | **0.66690** | ↓ |
-| 13-dataset PK accuracy（1,300 行） | **0.64692** | 0.61077 | ↑ |
+| 13 数据集 PK 准确率（1,300 行） | **0.64692** | 0.61077 | ↑ |
 | PK：Kev 训过的 5 个来源（500 行） | **0.718** | 0.672 | ↑ |
-| PK：Kev 未训过的 8 个来源（800 行） | **0.6025** | 0.5725 | ↑ |
-| 视觉决策 mean skill（5 个集合等权平均） | **0.69729** | 0.68757 | ↑ |
-| 视觉决策 mean accuracy（5 个集合等权平均） | **0.80155** | 0.79494 | ↑ |
-| 训练耗时（含周期验证，不含加载/最终评测） | 2.77 h（3 卡） | 3.15 h（4 卡） | ↓ |
+| PK：Kev 没见过的 8 个来源（800 行） | **0.6025** | 0.5725 | ↑ |
+| 看图决策 mean skill（5 个集合等权） | **0.69729** | 0.68757 | ↑ |
+| 看图决策 mean accuracy（5 个集合等权） | **0.80155** | 0.79494 | ↑ |
+| 训练耗时（含周期验证） | **2.77 h**（3 卡） | 3.15 h（4 卡） | ↓ |
 
-Decision Index 的五个 area skill：
+Decision Index 各领域得分：
 
-| 方法 | Knowledge | Language | Retrieval | Tools | Arts |
+| 方法 | 知识 | 语言 | 检索 | 工具 | 艺术 |
 |---|---:|---:|---:|---:|---:|
-| LoRA | 0.322 | 0.394 | 0.415 | 0.584 | 0.287 |
-| 全参 | 0.263 | 0.341 | 0.436 | 0.579 | 0.260 |
+| LoRA | **0.322** | **0.394** | 0.415 | **0.584** | **0.287** |
+| 全参 | 0.263 | 0.341 | **0.436** | 0.579 | 0.260 |
 
-PK 的配对比较中，全参独有正确 42 行、LoRA 独有正确 89 行，双侧精确 McNemar p≈4.9e-5。
-该检验只针对这 1,300 行，并不消除训练种子和其他评测集的变异。
-历史全参服务的启动命令未显式记录宽选项策略，不能仅凭当前默认值确认其历史读法。
-排除 BANKING77 / MASSIVE en / MASSIVE zh 三个宽选项场景后，剩余同题 1,000 行仍为
-LoRA 633 行正确、全参 600 行正确；LoRA/全参独有正确 67/34 行，精确 McNemar p=0.00133。
-因此 PK 差距不能全部归因于宽选项策略，但完整宽题消融仍待 GPU 空闲后完成。
+PK 上全参独有正确 42 题，LoRA 独有正确 89 题（双侧精确 McNemar p≈4.9e-5）。去掉三个宽选项场景（BANKING77、MASSIVE en、
+MASSIVE zh）后，剩下的 1,000 题 LoRA 仍对 633 题、全参对 600 题（独有正确 67 / 34，p=0.00133），所以差距不只来自宽选项的读法。
+transfer-v4 上的准确率差异（656 题中 511 对 500，独有正确 33 / 22，p=0.177）不显著，且全参在那里的 NLL 和 ECE 更好。
+OOD 的选择题上 top-1 很接近（88.84% 对 88.69%），但 KL 是 0.31905 对 0.54443：argmax 一致不代表分布一致。
 
-transfer-v4 的同题准确率差为 511/656 对 500/656，LoRA/全参独有正确 33/22 行，
-精确 McNemar p=0.177；这批样本不足以证明其准确率差显著。全参在该集上更好的 NLL/ECE 应同时保留，
-不能把结果概括为所有指标都更差。
+**结论：全参在分布内 KL 和 transfer-v4 的校准上略好，但在 OOD、Decision Index、PK 和看图决策上都没有提升，
+所以 27B 用 LoRA 训练。** 这个结论限于当前的纯蒸馏数据、学习率和单个种子，不能说明加上更广的金标数据后全参也会更差。
+2e-6 的学习率来自一个 400 步的短扫描，不是针对完整 epoch 调好的学习率。
 
-OOD choice 的 top-1 约为 88.84% / 88.69%，而 KL 为 0.31905 / 0.54443：
-top-1 接近并不意味着完整概率分布接近。这里 top-1 只统计 teacher 有唯一最大值的题，
-KL 则统计全部 738 行（见 `trainjev/metrics.py`），两者分母口径不同。
-这支持“该 OOD 集上的分布匹配退化”，不构成已证明具体原因或所有域外任务准确率下降。
-两组验证 KL 仍持续下降，不能仅凭 OOD 差距断言已观察到后期过拟合。
+## 10. Qwen3.8-27B LoRA（train-jev-27b-lora）
 
-视觉实际覆盖 CV-Bench / BLINK / RealWorldQA / CharXiv 各 300 行、InfoVQA 244 行，共 1,444 行；
-两模型的行集合相同。前文“300 items each”是抽样上限，不代表每个集合都实际有 300 行。
+Qwen3.8-27B，jev-distill-corpus-v3，全局 batch 128，最大长度 2,048，micro-token 预算 16,384，开启 gradient checkpointing，
+r16，LoRA / 决策头学习率 1e-4 / 2e-4，4×H20，seed 0，5,123 步。验证 KL 最低出现在第 5,123 步。PK、transfer-v4 和
+Decision Index 对超过 16 个选项的题使用 `tournament` 读法；JEV-27B-VL 的分数使用 `single`、推理后端也不同，
+所以这张表不是读法的消融。
 
-**本轮结论：全参在分布内 KL、transfer-v4 的 ECE/NLL 上略好，但 OOD、Decision Index、PK 和视觉平均 skill
-没有改善，因此不满足“4B 全参效果更好”的升级条件。按预先约定，Qwen3.8-27B 采用 LoRA，而不是全参。**
-这是当前纯蒸馏数据、当前学习率与单个 seed 下的结论，不意味着全参加更广公开金标数据也一定不如 LoRA。
-全参学习率 2e-6 来自独立的 400 步 cosine schedule、2,000 行 validation 的短 LR sweep，
-不是 5,123 步 schedule 的截断测试，也不足以证明完整 epoch 的超参已充分调优。
-
-### Qwen3.8-27B 后续实验
-
-27B LoRA 的完整训练与评测已完成，见第 10 节。
-本轮配置：4×H20、r16、LoRA/head lr 1e-4/2e-4、global batch 128、max length 2,048、
-micro-token budget 16,384、开启 gradient checkpointing；实跑 5,123 步。
-训练保留可恢复的权重/优化器/RNG 状态，并按相同 corpus、Decision Index、transfer-v4、PK 和视觉行集合评测。
-
-## 9. 完整 Decision Index 0.3 面板准备（2026-10-15）
-
-这部分是数据构建/完整性核验，不是模型评测分数。canonical Decision Index revision 为 `f8552a13`。
-当前隔离构建已准备官方文本 public panel 的 **36/37 个基准、106,087 个可评分请求**；
-HoVer 的 4,000 请求仍等待 Wikipedia DB 下载完成及官方 SHA256/SQLite 校验。
-完整 37 面板的预期请求数为 **110,087**，尚未完成严格 suite import/verify，不报告其完整指数。
-旧 suite、6,000 请求采样及历史模型结果均未覆盖。
-
-| 核验项 | 结果 |
-|---|---|
-| HLE 原始 parquet | 2,500 行，274,276,147 bytes，SHA256 与锁定 revision `5a81a4c7` 的 etag 匹配 |
-| HLE 官方文本多选归一化 | 513 行；应用官方排除规则后 501 个可评分请求 |
-| release-v1 / release-v2 基础 / GSM8K | 未压缩 SHA256 分别与官方 pin 逐字节匹配 |
-| 其余 6 个 added 基准 | 26,419 行，与旧部分文件逐字节一致 |
-| added 全量文件 | 缺 HoVer，完整官方 SHA256 尚不匹配，不视为通过 |
-| 独立 DI CPU 检查 | 89 项通过，不包含尚未完成的完整面板导入/模型推理验收 |
-
-**范围必须区分：完整 DI 0.3 文本面板不等于完整 HLE 多模态评测。**
-HLE 原始数据中有图像的题共 342 道（78 道多选、264 道 exactMatch）；官方文本适配器明确排除这些题
-及开放答案题，因此 501 道可评分 HLE 请求均无图像。当前准备的 36 项请求也没有原生图像字段；
-少数冻结源文本含 Markdown/HTML 图像引用或字面量 data URI，这些仍按文本处理，不删除来追求覆盖率。
-独立视觉决策仍按前述 5 集合协议评测；若扩展 HLE 图像多选或开放答案，必须另立协议、单独报告。
-
-完整面板验证后，当前 27B 与原 JEV-27B-VL 将使用相同冻结请求文件评测。
-新 37 面板分数不与旧 35 基准采样分数直接比较；数据 pin 匹配也不等于所有模型请求成功，
-还需分别验证实际作答覆盖、错误请求及 scorer 配置。
-
-## 10. Qwen3.8-27B LoRA 训练与评测（2026-10-16）
-
-按第 8 节的结论，27B 采用 LoRA 而非全参。底座 Qwen3.8-27B，数据仍为 jev-distill-corpus-v3，
-全局 batch 128、max length 2,048、micro-token budget 16,384、关闭 `--no_gc`（即开启 gradient
-checkpointing）、r16、LoRA/head lr 1e-4/2e-4，4×H20，seed 0，实跑 5,123 步。
-完整训练退出码 0；按固定 4,000 行验证集最低 KL 选中第 5,123 步，`best/` 与 `step05123/` 的
-adapter/head SHA256 一致（`88816e6e…` / `cfb6b9bd…`），可复现该 checkpoint。
-以下为实际产物的同题评测；本轮 train-jev-27b-lora 的 PK、transfer-v4、Decision Index 显式使用 `tournament`。
-原 JEV-27B-VL 的历史宽题结果使用 `single`，且后端不同；不能把这张跨模型表当作读法消融。
-
-本轮主链路按历史协议对齐，**不等待 HLE/HoVer**：Decision Index 使用原 6,000 请求、35 基准重算面板。
-本表 train-jev-27b-lora 结果来自已完成的 HF 合并 bf16 评测，不采用仍未通过数值替换门槛的 vLLM 实验结果。
-完整 37 面板、部署后端及下一版数据优化是另行跟进的分支，不是这轮训练/五套旧协议评测的完成前提。
-
-| 指标 | train-jev-4b-lora | JEV-27B-VL | **train-jev-27b-lora** | 方向 |
+| 指标 | train-jev-4b-lora | JEV-27B-VL | **train-jev-27b-lora** | |
 |---|---:|---:|---:|:---:|
-| 最佳 validation KL（4,000 行） | 0.0160 | – | **0.01423** | ↓ |
+| 最佳验证 KL（4,000 行） | 0.0160 | – | **0.01423** | ↓ |
 | test_set_30k KL（6,000 行，校准后） | 0.02239 | 0.02075 | **0.01853** | ↓ |
-| test_set_30k KL（Jev-labelled，校准后） | 0.01795 | 0.017 | **0.01561** | ↓ |
+| test_set_30k KL（Jev 标注，校准后） | 0.01795 | 0.017 | **0.01561** | ↓ |
 | OOD KL（3,000 行，校准后） | 0.31073 | **0.10842** | 0.11006 | ↓ |
-| Decision Index 0.3，35 基准重算（6,000 行） | 40.35 | 54.11 | **54.57** | ↑ |
-| transfer-v4 accuracy（656 行） | 0.77896 | **0.85213** | 0.85061 | ↑ |
+| Decision Index 0.3，35 基准抽样（6,000 行） | 40.35 | 54.11 | **54.57** | ↑ |
+| transfer-v4 准确率（656 行） | 0.77896 | **0.85213** | 0.85061 | ↑ |
 | transfer-v4 ECE | 0.07468 | 0.09731 | **0.05308** | ↓ |
 | transfer-v4 NLL | 0.74455 | 0.46022 | **0.41130** | ↓ |
-| 13-dataset PK accuracy（1,300 行） | 0.64692 | **0.690** | 0.67769 | ↑ |
+| 13 数据集 PK 准确率（1,300 行） | 0.64692 | **0.690** | 0.67769 | ↑ |
 | PK ECE | **0.07569** | 0.094 | 0.10294 | ↓ |
 | PK：Kev 训过的 5 个来源（500 行） | 0.718 | **0.762** | 0.754 | ↑ |
-| PK：Kev 未训过的 8 个来源（800 行） | 0.6025 | **0.645** | 0.630 | ↑ |
+| PK：Kev 没见过的 8 个来源（800 行） | 0.6025 | **0.645** | 0.630 | ↑ |
 | PK p50 延迟（单张 H20） | **43.5 ms** | 96 ms | 81.9 ms | ↓ |
-| 视觉决策 mean skill（5 个集合等权，1,444 行） | 0.69729 | **0.78195** | 0.75999 | ↑ |
-| 视觉决策 mean accuracy（5 个集合等权） | 0.80155 | **0.85923** | 0.84442 | ↑ |
-| 训练耗时（含周期验证，不含加载/最终评测） | 2.77 h（3 卡） | – | 33.07 h（4 卡） | ↓ |
+| 看图决策 mean skill（5 个集合，1,444 行） | 0.69729 | **0.78195** | 0.75999 | ↑ |
+| 看图决策 mean accuracy（5 个集合） | 0.80155 | **0.85923** | 0.84442 | ↑ |
+| 训练耗时（含周期验证） | **2.77 h**（3 卡） | – | 33.07 h（4 卡） | ↓ |
 
-验证轨迹（`--val_n 4000`，含周期验证的累计时间）：
+验证曲线（`--val_n 4000`，累计耗时）：
 
 | step | 500 | 1000 | 1500 | 2000 | 2500 | 3000 | 3500 | 4000 | 4500 | 5000 | **5123** |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| val KL | 0.0451 | 0.0420 | 0.0295 | 0.0243 | 0.0211 | 0.0193 | 0.0175 | 0.0160 | 0.0146 | 0.0143 | **0.0142** |
-| elapsed h | 3.23 | 6.48 | 9.71 | 12.96 | 16.17 | 19.41 | 22.62 | 25.82 | 29.06 | 32.27 | 33.07 |
+| 验证 KL | 0.0451 | 0.0420 | 0.0295 | 0.0243 | 0.0211 | 0.0193 | 0.0175 | 0.0160 | 0.0146 | 0.0143 | **0.0142** |
+| 耗时 h | 3.23 | 6.48 | 9.71 | 12.96 | 16.17 | 19.41 | 22.62 | 25.82 | 29.06 | 32.27 | 33.07 |
 
-Decision Index 0.3 的五个 area skill（同一 35 基准面板，HLE/HoVer 已剔除并重新归一化）：
+- **与 train-jev-4b-lora 相比**，27B 几乎全面更好：OOD KL −0.20，Decision Index +14.2，transfer-v4 准确率 +7.2 个百分点
+  （独有正确 71 / 24，p=1.5e-6），PK 准确率 +3.1 个百分点（104 / 64，p=0.0025），看图 skill +6.3 分。
+  但 PK 的 ECE 更差（0.103 对 0.076），速度也更慢（82 对 43 ms）。
+- **与 JEV-27B-VL 相比**，准确率持平：transfer-v4 独有正确 16 / 17（p=1），PK 27 / 43（p=0.072），Decision Index 54.57 对 54.11
+  （未估计置信区间）。transfer-v4 上的校准明显更好（ECE 0.053 对 0.097，NLL 0.411 对 0.460）；OOD KL 基本相同（0.110 对 0.108）。
+- **弱项是看图决策**：mean skill 0.760 对 0.782，BLINK、RealWorldQA、CharXiv、InfoVQA 都略低，只有 CV-Bench 更高
+  （0.770 对 0.743）。视觉塔没有训练。
 
-| 模型 | index (35) | Knowledge | Language | Retrieval | Tools | Arts |
-|---|---:|---:|---:|---:|---:|---:|
-| train-jev-4b-lora | 40.35 | 0.322 | 0.394 | 0.415 | 0.584 | 0.287 |
-| JEV-27B-VL | 54.11 | 0.452 | 0.534 | 0.549 | 0.739 | 0.413 |
-| **train-jev-27b-lora** | **54.57** | 0.438 | **0.552** | **0.567** | 0.737 | **0.415** |
+## 11. 局限
 
-视觉决策五个集合（300 行抽样上限；InfoVQA 实际 244 行，共 1,444 行，三模型行集合一致）：
-
-| 模型 | CV-Bench | BLINK | RealWorldQA | CharXiv | InfoVQA | mean skill |
-|---|---:|---:|---:|---:|---:|---:|
-| train-jev-4b-lora | 0.732 | 0.506 | 0.608 | 0.729 | 0.913 | 0.697 |
-| JEV-27B-VL | 0.743 | **0.634** | **0.711** | **0.849** | **0.973** | **0.782** |
-| **train-jev-27b-lora** | **0.770** | 0.568 | 0.673 | 0.822 | 0.967 | 0.760 |
-
-**读法（只依据实测值，不把单项优势等同于整体 SOTA）：**
-
-- 相对 4B LoRA，train-jev-27b-lora 的多数准确率/分布指标更好：OOD KL −0.2007、Decision Index +14.22、
-  transfer-v4 准确率 +0.0717 且 NLL −0.3333、PK 准确率 +0.0308、视觉 mean skill +0.0627；
-  但 PK ECE 0.10294 劣于 0.07569，PK p50 81.9 ms 慢于 43.5 ms，不能说全部指标更好。
-- 相对原 JEV-27B-VL，train-jev-27b-lora 的 Decision Index 54.57 对 54.11（+0.46），
-  transfer-v4 NLL 0.41130 对 0.46022、ECE 0.05308 对 0.09731 更好；OOD KL 0.11006 略高于 0.10842。
-- train-jev-27b-lora 的弱项是视觉：mean skill 0.760 低于原版 27B 的 0.782（差 2.2 点），
-  BLINK / RealWorldQA / CharXiv / InfoVQA 均略低，仅 CV-Bench 更高（0.770 对 0.743）。
-  本轮视觉塔未参与训练，这与“文本蒸馏不必然改善视觉”一致。
-- PK 上 train-jev-27b-lora 对 4B LoRA 的独有正确为 104/64，精确 McNemar p=0.00252；
-  train-jev-27b-lora 对原版为 27/43，p=0.072。后者未达到 0.05 阈值，不代表已证明两者等价。
-- transfer-v4 上 train-jev-27b-lora 对 4B LoRA 的独有正确为 71/24，p=1.46e-6；对原版为 16/17，p=1。
-  本题集未证实 train-jev-27b-lora 的准确率超过原版，不能从“都比 4B 好”直接推出规模是已验证的唯一原因。
-- 这些配对检验未校正多个比较，且不替代跨 seed 或跨任务泛化验证。
-- Decision Index 的 +0.46 尚未做配对置信区间/显著性检验，不能断言它在采样噪声内，
-  也不足以证明全面超过原版。完整面板、同读法/后端及重复训练仍待完成，不声称 SOTA。
-
-**边界与限制：**
-
-- Decision Index 剔除 HLE / HoVer 后重算为 **35** 基准，仅用于相同样本面板内的比较，**不是官方总分**。
-  采样为 6,000 行分层抽样，单基准约 150 行；未估计这些个体差异的置信区间。
-- 只跑了一个训练 seed，未测跨种子方差；27B 为全 rank-16 LoRA，未与全参对照。
-  训练耗时 33.07 h（4 卡）显著高于 4B 的 2.77 h（3 卡），本表不构成等算力消融。
-- 27B corpus 推理 token budget 为 8,192，而 4B 历史结果为 24,576，BF16 批大小不同可能带来小幅数值差异。
-- 4B 全参历史服务的宽题读法未在启动日志中记录，不能把三模型宽题策略严格一致视为已证实。
-- corpus 的分布内切分与训练共享状态较多，其分数不是全新状态上的泛化证据；OOD 状态未重合。
-- 视觉集合实际覆盖 1,444 行（InfoVQA 244 行），前文“300 items each”是抽样上限。
-- 结论限于当前纯蒸馏数据、当前学习率与单个 seed，不外推到加入更广公开金标数据的情形。
+- Decision Index 的分数是 35 个基准上的 6,000 题分层抽样（去掉 HLE 和 HoVer 并对领域重新归一化），用于在同一面板上比较模型，
+  **不是官方总分**。每个基准约 150 题，单个基准的分数噪声较大。
+- 每个模型只训练了一个种子，没有测种子间的方差；上面的 McNemar 检验没有做多重比较校正。
+- jev-distill 的分布内切分与训练集共享 state（但没有完整 prompt 重复），所以分布内 KL 不能证明对新 state 的泛化；OOD 的 state 不重合。
+- 看图决策共 1,444 题（CV-Bench、BLINK、RealWorldQA、CharXiv 各 300 题，InfoVQA 244 题）。
+- 结论限于当前的纯蒸馏数据，不外推到加入更广金标数据的配方。
