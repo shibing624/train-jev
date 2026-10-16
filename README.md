@@ -167,7 +167,8 @@ python -m trainjev.serve --base models/Qwen3.5-4B --adapter shibing624/train-jev
   --adapter_revision v0.2.0 --port 8020 --strategy tournament
 ```
 
-`v0.2.0` 是示例发布 tag，需上传者实际创建。默认 single 与历史 tournament 分数不是同一个协议。
+模型 tag `v0.2.0` 对应代码 tag
+[v0.2.0](https://github.com/shibing624/train-jev/tree/v0.2.0)。默认 single 与历史 tournament 分数不是同一个协议。
 
 ### 宽选项
 
@@ -200,7 +201,7 @@ permute 更准但主要欠置信；tournament 在 MASSIVE en 比 single 低6pp�
 - [ ] 数据固定后再试LoRA r32/r64或全参；全参不是预定赢家。短探针用 `STEPS=5123 MAX_STEPS=400`，不缩成400步schedule。
 - [ ] 胜出4B完整训练并重复seed，独立dev/校准/视觉门槛通过后迁移27B-v2；同题验证是否超过当前r1和原JEV。
 - [ ] 完整DI37与vLLM精度分支独立跟进，不阻塞旧35主结果，不把新旧面板或部署实现混比。
-- [ ] 发布4B/27B HF权重并记录真实repo/tag/code revision；9B是后续计划，不冒充已训练。
+- [x] 发布4B/27B HF权重（tag `v0.2.0`，code revision `cb73b78`）；9B是后续计划，未训练。
 
 ## License / Citation / Contact
 

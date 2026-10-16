@@ -27,7 +27,7 @@ CKPT=runs/jev-4b/best OUT=eval/corpus-4b bash scripts/run_eval.sh
 BASE=models/Qwen3.8-27B CKPT=runs/jev-27b/best OUT=eval/corpus-27b bash scripts/run_eval.sh
 
 # Already-calibrated release: apply its temperatures,do not refit against test.
-python -m trainjev.evaluate --base models/Qwen3.5-4B --adapter releases/v0.2.0/train-jev-4b \
+python -m trainjev.evaluate --base models/Qwen3.5-4B --adapter shibing624/train-jev-4b-lora --adapter_revision v0.2.0 \
   --data data/jev-distill-corpus-v3 --out eval/release-4b
 python scripts/compare_corpus.py release=eval/release-4b/summary.json
 ```

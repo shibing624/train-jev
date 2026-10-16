@@ -5,7 +5,7 @@
 ### v0.2.0 (2026-10-16)
 
 - Qwen3.8-27B LoRA（r16，5,123 步）训练完成并跑完五套评测；4B / 27B 结果、限制写入 README 和 `docs/results.md`。
-- 发布 HF 模型 `shibing624/train-jev-4b-lora`、`shibing624/train-jev-27b-lora`（LoRA + 决策头 + 温度）。`--adapter` 可直接传 HF repo id，会一并下载 `head.pt` 和 `calibration.json`，`--adapter_revision` 固定版本。
+- 发布 HF 模型 `shibing624/train-jev-4b-lora`、`shibing624/train-jev-27b-lora`（LoRA + 决策头 + 温度，tag `v0.2.0`），已用干净下载校验全部文件 SHA256。`--adapter` 可直接传 HF repo id，会一并下载 `head.pt` 和 `calibration.json`，`--adapter_revision` 固定版本。
 - 固定底座 / 数据 revision（`scripts/prepare_data.sh`）和 Decision Index 抽样（`scripts/di_sample.py`：seed 20260919、去掉 45 / 61，输出抽样清单）。
 - 新增示例：`examples/local_inference.py`、`batch_decisions.py`、`wide_choices.py`、`smoke_systemone.py`。
 - 训练脚本支持 `RESUME` / `SAVE_STATE_EVERY` / `SEED` / `STEPS`，日志追加；`--resume` 找不到训练状态时直接报错，不会从头重训。

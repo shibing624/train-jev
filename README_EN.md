@@ -165,7 +165,8 @@ python -m trainjev.serve --base models/Qwen3.5-4B --adapter shibing624/train-jev
   --adapter_revision v0.2.0 --port 8020 --strategy tournament
 ```
 
-The tag is an example and must actually be created. Reproduce historical numbers with explicit tournament;
+The model tag `v0.2.0` matches the code tag
+[v0.2.0](https://github.com/shibing624/train-jev/tree/v0.2.0). Reproduce historical numbers with explicit tournament;
 default single is a different protocol.
 
 ### Wide choices
@@ -198,7 +199,7 @@ and calibration. Do not fit on these test labels. [Paired results and trace limi
 - [ ] Complete and repeat promising 4B runs across seeds; pass independent dev/calibration/vision gates before 27B-v2.
       Compare against current r1 and the original JEV on identical inputs; SOTA requires broader supporting evidence.
 - [ ] Complete 37 DI and vLLM numerical branches remain separate from the completed old 35 result.
-- [ ] Upload 4B/27B and record actual repo/tag/code revision.9B is planned, not trained.
+- [x] Uploaded the 4B/27B HF adapters (tag `v0.2.0`, code revision `cb73b78`). 9B is planned, not trained.
 
 ## License, citation and contact
 
