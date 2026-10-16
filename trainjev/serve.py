@@ -39,7 +39,7 @@ import zlib
 import torch
 
 from trainjev.data import encode, micro_batches
-from trainjev.modeling import last_hidden, load_model, load_temperatures
+from trainjev.modeling import last_hidden, load_model, load_temperatures, resolve_checkpoint
 
 S = {}
 STRATEGIES = ("single", "tournament", "permute")
@@ -49,6 +49,7 @@ def parse_args(argv=None):
     ap = argparse.ArgumentParser(description="System One compatible server for train-jev checkpoints")
     ap.add_argument("--base", default="Qwen/Qwen3.5-4B")
     ap.add_argument("--adapter", default="")
+    ap.add_argument("--adapter_revision", default=None, help="HF adapter revision/tag; unused for local paths")
     ap.add_argument("--base_only", action="store_true")
     ap.add_argument("--proxy", default="")
     ap.add_argument("--calibration", default="", help="calibration.json (default: <adapter>/calibration.json)")
@@ -69,7 +70,8 @@ def setup(a):
 
         S["client"] = httpx.AsyncClient(base_url=a.proxy, timeout=900)
         return
-    adapter = "" if a.base_only else a.adapter
+    adapter = "" if a.base_only else resolve_checkpoint(a.adapter, a.adapter_revision)
+    a.adapter = adapter
     tok, body, head = load_model(a.base, adapter, dtype=torch.bfloat16 if a.device == "cuda" else torch.float32,
                                  device=a.device)
     cal = a.calibration or (os.path.join(adapter, "calibration.json") if adapter else "")

@@ -15,12 +15,21 @@ runs/
 eval/
 logs/
 third_party/
+releases/
+outputs/
 wandb/
 *.safetensors
 *.pt
 *.jsonl.gz
 
+# credentials and local settings
+.env
+.env.*
+*.pem
+*.key
+
 # editors
 .idea/
 .vscode/
 .DS_Store
+tmp/

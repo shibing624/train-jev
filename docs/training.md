@@ -16,8 +16,9 @@ Every training row is one typed question about a state:
 - `score`: options `["0", ..., "5"]`, target a distribution over the 6 ordered levels
 - `choice`: 2-16 options, target aligned with `options`
 
-`target` is a full soft distribution from the teacher, not a hard label. Any jsonl file in this schema can be added to
-training with `--mix path.jsonl:N` (repeated N times); `weight` scales its loss.
+`target` is the supplied full probability vector; the corpus includes teacher soft distributions and programmatic
+targets. It is not uniformly one-hot or uniformly one API's output. Other jsonl files can use the same schema via
+`--mix path.jsonl:N` (repeated N times); `weight` scales loss. Audit new targets and provenance before training.
 
 ## 2. Prompt (`bare-v1`)
 
@@ -63,8 +64,9 @@ pretraining already knows (noul AUROC 0.82, choice top-1 0.51 on `test_set_30k`)
 | full attention | `q_proj`, `k_proj`, `v_proj`, `o_proj` |
 | MLP | `gate_proj`, `up_proj`, `down_proj` |
 
-30.5M trainable LoRA parameters on the 4B backbone, plus 61k for the head. `lm_head` is not used on the decision path,
-so the base model's generation ability is untouched (the adapter is only merged into the decision path at serving time).
+The 4B has 30.5M trainable LoRA parameters plus 61,464 head parameters; the 27B has 108.8M plus 122,904.
+Training uses the small head rather than the full vocabulary projection. Original base files are unchanged, but
+generation with an enabled/merged adapter can change because the encoder is shared; that behavior was not evaluated.
 
 **Right padding, no mask.** Batches are right-padded and the hidden state is read at each row's last real token. In a
 causal model padding after the last real token cannot affect it, and this also holds for the recurrent Gated DeltaNet
@@ -77,20 +79,27 @@ recurrent state.
 loss = Σ_rows weight · [ KL(target ‖ softmax(z)) + 0.5 · RPS(target, softmax(z)) · 1{kind = score} ] / batch
 ```
 
-- **KL to the full teacher distribution** transfers the teacher's uncertainty as well as its argmax. This is why the
-  fitted temperatures end up at ≈ 1.0: calibration comes from the objective.
+- **KL to the supplied distribution** encourages agreement with uncertainty as well as argmax. Temperatures near
+  1.0 were observed here, not guaranteed by the loss or guaranteed on every new domain.
 - **RPS** (ranked probability score, squared distance between the cumulative distributions) on `score` rows penalises
   mass that is far from the target level more than mass on a neighbouring level, which KL alone ignores.
 
+For K=6, RPS is `sum((cumsum(p)-cumsum(t))[:K-1]**2)/(K-1)`; the final cumulative bin is omitted.
+The denominator of the training loss is the global row batch, not the sum of row weights. Targets are normalised
+before vectorised computation. The head operates on fp32 hidden/readout values; backbone compute is bf16.
+
 ## 5. Data handling
 
-- **Placeholder rows.** The `yuri_v1` stream of jev-distill-corpus-v3 (148k memory-relevance rows) carries uniform
-  `[0.5, 0.5]` targets. They are kept at loss weight ×0.05 (`--placeholder_w`), following the JEV card, and excluded
+- **Placeholder rows.** The training yuri_v1 source has 137,203 rows, mostly uniform binary targets. The existing
+  heuristic also flags any uniform two-way target (138,889 flagged train rows total); it does not estimate a label
+  error rate. They are kept at loss weight ×0.05 (`--placeholder_w`) and excluded
   from temperature fitting. `--placeholder_w 0` drops them.
 - **Option permutation.** 30% of `choice` rows get their options shuffled, with the target permuted the same way
   (`--perm`). Without this the model learns position priors (the untrained backbone flips its answer under reordering
   41% of the time on JEV-27B's measurement).
-- **Kind-stratified batches.** Each 128-row step draws ≥ 1/6 of the batch from each kind, the rest uniformly. The
+- **Kind-stratified batches.** Each 128-row step draws floor(128/6)=21 rows per kind and fills the remaining 65 from
+  the global pool. Each sample operation is without replacement within that operation, but the forced and global
+  draws can overlap, and steps resample independently. This is not an epoch traversal. The
   sampling RNG is seeded by the step, so every rank sees the same global batch and takes its `rank::world` slice.
 - **> 16 options** are dropped from training. At serving time `trainjev/serve.py --strategy` picks how they are read
   (the three strategies of JEV-27B-VL's `serve_decide.py`): `single` (default; one pass, labels A–P from the trained
@@ -123,6 +132,24 @@ The initial local audit finds extensive shared states between the original corpu
 while OOD states do not overlap. Shared state is not necessarily repeated questions or label leakage: multiple
 questions can legitimately use one context. Report both levels and use fresh state/group-disjoint development
 data for new-recipe selection. The current reproduction run retains its frozen splits for comparability.
+
+Full-file audit snapshot (2026-10-15; these are not the smaller evaluation samples):
+
+| split | rows | rows whose normalized state is in train | complete prompts also in train |
+|---|---:|---:|---:|
+| validation | 14,111 | 12,225 | 0 |
+| calibration | 13,766 | 11,873 | 0 |
+| test | 14,261 | 12,373 | 0 |
+| test_set_30k | 29,955 | 28,065 | 0 |
+| ood | 13,058 | 0 | 0 |
+
+The training pool has 655,806 rows, one normalized repeated prompt and no observed target disagreement on that
+repeat. About 21.2% match the existing placeholder heuristic; this is not an estimated semantic label error rate.
+The first candidate gold pool has 39,973 structurally valid rows, with no normalized state or complete-prompt
+overlap with the distillation training pool or the supplied held-out inputs. That does not cover the pending full
+DI suite or missing transfer request inputs, and does not establish source/template independence. Candidate
+indices contain 36,218 train and 3,755 dev rows grouped by state; all remain unapproved for training. The utility
+has 20 offline tests, including actual input-format parsing, target disagreements and state-vs-prompt overlap.
 
 ## 6. Optimisation
 
@@ -217,9 +244,9 @@ KL 0.416699). The 4B resumable state is about 370 MB. This is a resume check, no
 assessment of model quality. The current 27B experiment uses the verified LoRA path and preserves its original
 TF32 setting across the saved-state boundary; it does not use the unresolved full-parameter path.
 
-> If you train on data without placeholder rows (`--placeholder_w 0`), the validation subset still contains them and
-> their KL rises as the model stops predicting 0.5. Select checkpoints on the non-placeholder part of validation, or
-> simply use the last step.
+> Dropping placeholder rows changes the training pool and can raise KL on uniform-target validation rows. Define an
+> independent development/selection criterion before running that ablation; do not inspect test results and then
+> change checkpoint selection. Keep explicit total steps fixed so a smaller pool does not silently shorten training.
 
 ## 8. Memory and speed
 
@@ -232,9 +259,9 @@ reference implementation. `causal-conv1d` is optional.
 
 ## 9. Backbones
 
-All Qwen3.5 / 3.6 / 3.8 checkpoints share the `qwen3_5` architecture and the same 248k vocabulary, so the verbalizer
-ids and the prompt tokenisation are identical and the code needs no changes, only `--base`. `check_verbalizers` runs at
-start-up and refuses a tokenizer where any verbalizer is not the expected single token.
+The tested 4B/27B bases share the dense `qwen3_5` architecture and the same decision verbalizer IDs.
+`check_verbalizers` refuses an incompatible tokenizer. Other sizes/architectures require initialization, LoRA target
+and inference checks; compatible token IDs alone do not establish trained quality or universal plug-in support.
 
 | backbone | layers (full attention) | hidden | tied embeddings | LoRA params | status |
 |---|---:|---:|:---:|---:|---|
@@ -244,15 +271,16 @@ start-up and refuses a tokenizer where any verbalizer is not the expected single
 
 Qwen3.8-27B notes:
 
-- Its `config.json` is identical to autotrust/JEV-27B-VL's, and the trainable counts (LoRA 108.8M, head 123k) match the
-  JEV-27B card, so this is the exact JEV-27B setup.
+- Its architecture dimensions and trainable counts match the JEV-27B recipe. This is not proof of identical
+  optimizer history, training data choices or deployment arithmetic; compare under a stated protocol.
 - The tokenizer differs from Qwen3.5 only by 7 added audio/TTS special tokens (ids 248070-248076); vocab, merges and
   pre-tokenizer are identical, and 2,000 training prompts tokenise to the same ids.
 - `AutoModelForCausalLM` loads only the text model (vision tower and MTP head are skipped); the init gate gives
   |Δp| = 0. `trainjev.eval_vision` loads the full VL model for images.
 - Requires `transformers>=5.17` and `peft>=0.21`; transformers 4.x does not know the `qwen3_5` model type.
-- Memory and speed on one H20 (96 GB), gradient checkpointing on, `--micro_tokens 16384`: 75 GB peak, ~50 s/step,
-  ~70 GPU-hours per epoch. Use `scripts/run_train_27b.sh` on 8 GPUs.
+- Completed four-H20 run: gradient checkpointing,`micro_tokens16384`,74.9 GB/rank, 23.24 s/step,
+  33.07 h including periodic validation for 5,123 steps. The launcher now defaults to these measured four GPUs.
+  Do not substitute the earlier unmeasured eight-GPU throughput estimate for a measured result.
 
 ## 10. Adapting the recipe
 

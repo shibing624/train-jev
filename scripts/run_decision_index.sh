@@ -3,7 +3,7 @@
 #
 # One-time setup (needs network; ~30 GB of public datasets):
 #   git clone https://github.com/apolinario/decision-index third_party/decision-index
-#   (cd third_party/decision-index && git apply ../../patches/decision-index-resumable-download.patch && pip install -e .)
+#   pip install -e third_party/decision-index
 #   (cd third_party/decision-index && python -m decision_index suite rebuild --work work && \
 #      python -m decision_index suite import \
 #        --rows work/artifacts/benchmark-suite/release-v2-rebuilt/selected-rows.jsonl.gz \

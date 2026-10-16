@@ -215,6 +215,8 @@ def main_full(a):
     state_dir = os.path.join(a.out, "state")
     if a.resume:
         meta = load_state(state_dir, body, head, opt)
+        if meta is None:
+            raise FileNotFoundError("Training state disappeared during loading; refusing a fresh run with --resume")
         if meta:
             start, best, hist = meta["step"], tuple(meta["best"]), meta["hist"]
             log(f"resumed from {state_dir} at step {start}")

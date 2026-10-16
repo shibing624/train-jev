@@ -27,6 +27,8 @@ import os
 import sys
 import time
 
+from trainjev.modeling import resolve_checkpoint
+
 DEFAULT_SETS = "full_cvbench,full_blink,full_realworldqa,full_charxiv,full_infovqa"
 
 
@@ -34,6 +36,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Zero-shot image decisions (Decision Index vision sets)")
     ap.add_argument("--base", default="Qwen/Qwen3.5-4B")
     ap.add_argument("--adapter", default="")
+    ap.add_argument("--adapter_revision", default=None, help="HF adapter revision/tag")
     ap.add_argument("--base_only", action="store_true")
     ap.add_argument("--decide_url", default="", help="JEV-27B-VL serve_decide.py server, for comparison")
     ap.add_argument("--di_root", required=True, help="decision-index checkout with work/vision rebuilt")
@@ -43,6 +46,8 @@ def main(argv=None):
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--out", required=True)
     a = ap.parse_args(argv)
+    if a.adapter:
+        a.adapter = resolve_checkpoint(a.adapter, a.adapter_revision)
     os.makedirs(a.out, exist_ok=True)
     sys.path.insert(0, a.di_root)
     from decision_index.vision import images as img

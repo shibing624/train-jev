@@ -25,6 +25,7 @@ import time
 
 from trainjev.data import encode_many, is_placeholder, load_rows, micro_batches
 from trainjev.metrics import metrics
+from trainjev.modeling import resolve_checkpoint
 
 
 def softmax_T(z, T):
@@ -127,6 +128,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Evaluate on jev-distill-corpus-v3 and fit temperatures")
     ap.add_argument("--base", default="Qwen/Qwen3.5-4B")
     ap.add_argument("--adapter", default="")
+    ap.add_argument("--adapter_revision", default=None, help="HF adapter revision/tag")
     ap.add_argument("--base_only", action="store_true")
     ap.add_argument("--decide_url", default="", help="JEV-27B-VL serve_decide.py server, for comparison")
     ap.add_argument("--systemone_url", default="")
@@ -139,10 +141,15 @@ def main(argv=None):
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--batch_tokens", type=int, default=24576)
     a = ap.parse_args(argv)
+    adapter_source = a.adapter
+    if a.adapter:
+        a.adapter = resolve_checkpoint(a.adapter, a.adapter_revision)
+    if a.fit_calibration and adapter_source and a.adapter != adapter_source and not os.path.isdir(adapter_source):
+        raise ValueError("For refitting calibration, download the HF adapter to a writable local directory first")
     os.makedirs(a.out, exist_ok=True)
     logits_of = make_backend(a)
 
-    summary = {"model": a.adapter or ("base_only" if a.base_only else (a.decide_url or a.systemone_url))}
+    summary = {"model": adapter_source or ("base_only" if a.base_only else (a.decide_url or a.systemone_url))}
     temps = None
     if a.fit_calibration:
         cal = [r for r in load_rows(f"{a.data}/calibration.jsonl") if not is_placeholder(r)]

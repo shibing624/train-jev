@@ -20,6 +20,7 @@ Choices with more than 16 options (``single`` / ``permute`` strategies in ``trai
 ``serve_decide.py`` does; these rows are never trained and are not part of ``head.pt``.
 """
 import string
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -35,6 +36,23 @@ MAX_OPTIONS = 256
 # full attention (q / k / v / o_proj) and the MLP.
 LORA_TARGETS = ["in_proj_qkv", "in_proj_z", "out_proj", "q_proj", "k_proj", "v_proj", "o_proj",
                 "gate_proj", "up_proj", "down_proj"]
+
+
+def resolve_checkpoint(checkpoint, revision=None):
+    """Resolve a local inference directory or an HF adapter repo, including its custom head and temperatures."""
+    if not checkpoint:
+        return ""
+    path = Path(checkpoint).expanduser()
+    if path.is_dir():
+        return str(path)
+    if path.exists() or str(checkpoint).startswith(("/", "./", "../", "~")) or len(path.parts) > 2:
+        raise FileNotFoundError(f"Checkpoint directory does not exist: {checkpoint}")
+    from huggingface_hub import snapshot_download
+
+    return snapshot_download(repo_id=str(checkpoint), revision=revision,
+                             allow_patterns=["adapter_config.json", "adapter_model.safetensors", "model.safetensors",
+                                             "head.pt", "calibration.json", "training_recipe.json",
+                                             "release_manifest.json"])
 
 
 def check_verbalizers(tok):
@@ -118,6 +136,7 @@ def load_trained(text_model, head, ckpt):
     """
     import os
 
+    ckpt = resolve_checkpoint(ckpt)
     if is_full_checkpoint(ckpt):
         from safetensors.torch import load_file
 
@@ -131,7 +150,13 @@ def load_trained(text_model, head, ckpt):
         from peft import PeftModel
 
         text_model = PeftModel.from_pretrained(text_model, ckpt).merge_and_unload()
-    sd = torch.load(os.path.join(ckpt, "head.pt"), map_location="cpu")
+    sd = torch.load(os.path.join(ckpt, "head.pt"), map_location="cpu", weights_only=True)
+    if tuple(sd["weight"].shape) != tuple(head.weight.shape) or tuple(sd["bias"].shape) != tuple(head.bias.shape):
+        raise ValueError("Decision head dimensions do not match the selected backbone")
+    if "verbalizer_ids" in sd and list(sd["verbalizer_ids"]) != VERBALIZER_IDS:
+        raise ValueError("Decision head verbalizer ids do not match the tokenizer protocol")
+    if not torch.isfinite(sd["weight"]).all() or not torch.isfinite(sd["bias"]).all():
+        raise ValueError("Decision head contains nonfinite values")
     head.weight.data.copy_(sd["weight"])
     head.bias.data.copy_(sd["bias"])
     return text_model
@@ -145,6 +170,7 @@ def load_model(base, adapter="", dtype=torch.bfloat16, device="cuda"):
     """
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
+    adapter = resolve_checkpoint(adapter)
     tok = AutoTokenizer.from_pretrained(base)
     check_verbalizers(tok)
     m = AutoModelForCausalLM.from_pretrained(base, dtype=dtype)

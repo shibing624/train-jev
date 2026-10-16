@@ -1,0 +1,19 @@
+# Tested reference environment: Python 3.12.11, H20, CUDA 12.9, torch 2.13.0+cu129.
+# Install the matching CUDA torch/torchvision wheels first; this is not a cross-platform lock.
+torch==2.13.0
+torchvision==0.28.0
+transformers==5.17.0
+peft==0.21.0
+accelerate==1.15.0
+safetensors==0.8.0
+huggingface-hub==1.33.0
+numpy==2.5.4
+scikit-learn==1.9.1
+flash-linear-attention==0.5.2
+fastapi==0.143.0
+uvicorn==0.54.0
+httpx==0.28.1
+pillow==12.3.0
+# Test tooling used for the release preparation.
+pytest==9.1.1
+ruff==0.17.0

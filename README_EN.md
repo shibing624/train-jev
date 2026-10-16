@@ -1,253 +1,219 @@
-[**🇨🇳中文**](https://github.com/shibing624/train-jev/blob/main/README.md) | [**🌐English**](https://github.com/shibing624/train-jev/blob/main/README_EN.md) | [**📖文档/Docs**](docs/) | [**🤖模型/Models**](https://huggingface.co/shibing624)
-
------------------
+[中文](README.md) | [English](README_EN.md) | [Training](docs/training.md) | [Results](docs/results.md)
 
 # train-jev: Training JEV-style Decision Models
 
 [![HF Models](https://img.shields.io/badge/Hugging%20Face-shibing624-green)](https://huggingface.co/shibing624)
-[![Github Stars](https://img.shields.io/github/stars/shibing624/train-jev?color=yellow)](https://star-history.com/#shibing624/train-jev&Timeline)
-[![Contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![License Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![python_version](https://img.shields.io/badge/Python-3.12%2B-green.svg)](requirements.txt)
-[![GitHub issues](https://img.shields.io/github/issues/shibing624/train-jev.svg)](https://github.com/shibing624/train-jev/issues)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.12%2B-blue)](requirements.txt)
 
-## 📖 Introduction
+**train-jev** is an open-source System 1 typed-decision training and inference framework. It implements the public
+JEV-style recipe: **LoRA + a 24-slot fp32 decision head** on a Qwen text backbone, trained against supplied target
+distributions using KL and ordinal RPS. It does not generate answer text to make a decision.
+This is an independent reproduction, not affiliated with TypeSafe AI or autotrust.
 
-**train-jev** is an open-source framework for training **System 1 typed-decision models**. It reproduces the training
-recipe of JEV ([autotrust/JEV-27B](https://huggingface.co/autotrust/JEV-27B)): a **LoRA + 24-slot decision head** on a
-Qwen3.5 backbone, **KL-distilled** from TypeSafe Jev 1.13's full output distributions, returning **calibrated
-probabilities in a single forward pass**.
+**Both 4B and 27B LoRA runs completed 5,123 steps, checkpoint validation and five evaluation suites.** This repository
+includes reproducible inputs/settings, training/resume/calibration commands, inference demos, reports and HF release
+preparation. They are useful baselines; **no SOTA claim is made**.
 
-A decision model answers typed questions about a state:
+## Models and release status
+
+| model | backbone | trainable LoRA / head | best validation KL | status |
+|---|---|---:|---:|---|
+| train-jev 4B | `Qwen/Qwen3.5-4B` | 30.5M / 61,464 | 0.0160 | trained and evaluated |
+| train-jev 27B r1 | `Qwen/Qwen3.8-27B` | 108.8M / 122,904 | 0.01423 | trained and evaluated |
+
+HF models: [shibing624/train-jev-4b-lora](https://huggingface.co/shibing624/train-jev-4b-lora) and
+[shibing624/train-jev-27b-lora](https://huggingface.co/shibing624/train-jev-27b-lora). Each holds a LoRA adapter, the
+custom `head.pt` and calibration, without base weights; load them with this repository (see "Deployment").
+
+## Interface
 
 | type | example | output |
 |---|---|---|
-| `noul` | Is this ticket a platform-wide outage? | P(true) |
-| `choice` | Which team should handle it? (2–256 options; the first 16 are the trained A–P, see "Wide choices") | a probability per option |
-| `score` | How urgent is it? (levels 0–5) | a 6-level distribution and expected score |
+| `noul` | Is this order eligible under the refund rules? | P(true) |
+| `choice` | Which team should handle it? | option probabilities and argmax |
+| `score` | Severity from 0 to 5? | six-level probabilities and expected level |
 
-train-jev covers the whole pipeline:
+Serving exposes **`POST /v1/systemone`** and `GET /health`. Multiple questions share a state but are inferred
+independently; they do not see each other's answers. Per-kind temperatures are fitted on a separate calibration
+split. These are probability estimates, **not a guarantee of calibration on every deployment domain**.
+The local HTTP backend is text-only; zero-shot images use the separate `eval_vision` path.
 
-- **Training**: multi-GPU DDP via `torchrun`; the full JEV recipe in one file (LoRA r16, fp32 decision head, KL + RPS
-  loss, option-permutation augmentation, kind-stratified batches).
-- **Calibration**: per-kind temperature fitting, so the probabilities can be used directly as confidence.
-- **Evaluation**: four suites covering in-distribution distillation, OOD transfer, a public benchmark
-  ([Decision Index](https://github.com/apolinario/decision-index) 0.3), and zero-shot image decisions.
-- **Serving**: a TypeSafe [System One API](https://docs.typesafe.ai/api) compatible `POST /v1/systemone`; existing
-  SDKs and harnesses work unchanged. `--proxy` puts JEV-27B-VL behind the same API for side-by-side comparison.
-- **Image decisions**: training is text-only and Qwen3.5's vision encoder is left untouched, so the trained model can
-  make decisions about images zero-shot.
-
-> This is an independent research reproduction, not affiliated with TypeSafe AI or autotrust.
-
-## 🔥 News
-
-[2026/10/14] v0.1.0: first release. Reproduces the JEV recipe on Qwen3.5-4B. Training takes 2.8 h on 3× H20.
-In-distribution KL is 0.018, essentially level with the official JEV-27B (0.017). Zero-shot image decision skill rises
-from 0.632 to 0.697. Qwen3.8-27B (the JEV-27B backbone) is supported, and a 13-dataset classification PK is included.
-Full results are in [docs/results.md](docs/results.md).
-
-## 😊 Features
-
-- **One forward pass per decision**: no generation. The model reads a 24-slot head at the last prompt token; the 4B
-  model's single-request p50 is about 43 ms on an H20.
-- **Starts out identical to the backbone**: the head is initialised from `lm_head`'s rows for the verbalizer tokens
-  (`false/true`, `0–5`, `A–P`), so at step 0 it reproduces the base model's restricted next-token distribution
-  (|Δp| = 7.7e-6). Distillation sharpens what pretraining already knows.
-- **Small trainable footprint**: 30.5M LoRA parameters (0.7% of the backbone) plus a 61k-parameter head; the backbone
-  stays frozen.
-- **Covers Qwen3.5's hybrid stack**: the LoRA covers the Gated DeltaNet layers (`in_proj_qkv / in_proj_z / out_proj`)
-  as well as full attention. Batches are right-padded, so padding never leaks into the linear-attention recurrent state.
-- **Answers by option content, not position**: 30% of `choice` rows have their options shuffled during training, with
-  the target permuted the same way.
-- **Reproducible**: with a fixed seed, every rank draws the same per-step sample. On the same inputs this code is
-  bit-identical to the original experiment code: training loss, evaluation logits, server outputs and image
-  probabilities all differ by 0.
-
-## 🧠 Method
+## Method
 
 ```mermaid
 flowchart LR
-    P["[kind] choice<br/>[state] ...<br/>[question] ...<br/>[options]<br/>A) ...<br/>[decision]:"] --> L["Qwen3.5 backbone (frozen bf16)<br/>+ LoRA r16"]
-    L -->|hidden at last token| H["24-slot fp32 head<br/>noul | score 0..5 | choice A..P<br/>init = lm_head rows"]
-    H --> S["slice by kind → softmax / T_kind"]
-    T["Teacher: Jev 1.13 distributions<br/>(jev-distill-corpus-v3)"] -.->|"KL + 0.5 RPS"| S
+    P["bare-v1: kind / state / question / options"] --> B["Qwen text backbone + LoRA r16"]
+    B --> H["last real token hidden → 24-slot fp32 head"]
+    H --> S["kind slice → softmax(logits / T_kind)"]
+    T["supplied soft distributions / programmatic labels"] -.->|"KL + 0.5 RPS for score"| S
 ```
 
-| item | value |
-|---|---|
-| backbone | `Qwen/Qwen3.5-4B` (text model for training; the full VL model for image inference) |
-| data | [`SargeDev/jev-distill-corpus-v3`](https://huggingface.co/datasets/SargeDev/jev-distill-corpus-v3) `train`, 655,806 rows |
-| LoRA | r=16, α=32, dropout 0.05 on 10 projection types |
-| loss | KL(teacher ‖ model) + 0.5 · RPS for `score` |
-| augmentation | options shuffled on 30% of `choice` rows |
-| batching | 128 rows/step, kind-stratified, length-bucketed |
-| optimiser | AdamW β=(0.9, 0.98), LoRA 1e-4 / head 2e-4, 3% warm-up, cosine to 0.02×, clip 1.0, one epoch (5,123 steps) |
-| calibration | per-kind temperature on the `calibration` split: noul 1.008 / choice 1.004 / score 0.998 |
+- **Initialisation:** copy the `lm_head` rows of `false/true`, `0–5`, `A–P`; zero bias. `check_init.py` validates
+  restricted next-token readout equality rather than starting from a random classifier.
+- **LoRA:** rank 16, alpha 32, dropout 0.05 on DeltaNet `in_proj_qkv/in_proj_z/out_proj`, full-attention `q/k/v/o_proj`
+  and MLP `gate/up/down_proj`. The backbone is frozen; LoRA and the decision head are trainable.
+- **Objective:** per-row weighted KL(target || prediction), plus 0.5 RPS only for six-level score questions.
+  Micro-batch sums are normalised by the global 128-row batch, not by micro-batch count or sum of weights.
+- **Data:** 655,806 training rows: yuri_v3 443,977, openjev_v2 74,626, yuri_v1 137,203. Source buckets do not imply
+  that every label comes from one API. The existing placeholder/uniform-pair heuristic reduces loss weight to 0.05.
+- **Sampling:** take `floor(128/6)=21` rows per kind, then fill the rest from the whole pool, with step-seeded RNG.
+  This resamples across steps; it is not a without-replacement traversal. 5,123 steps mean 655,744 presentations,
+  approximately one epoch-equivalent draw budget, not a guarantee that every training row was seen.
+- **Augmentation:** shuffle 30% of choice rows together with their targets. Choice training supports at most 16 options.
+- **Optimisation:** AdamW beta=(0.9,0.98), zero weight decay, LoRA/head lr=1e-4/2e-4, 3% warmup, cosine to 0.02×,
+  global norm clip 1. Every 500 steps evaluate a fixed 4,000-row validation subset and select minimum KL.
+- **Calibration:** fit per-kind temperatures on calibration, excluding placeholders, never using test labels.
 
-Details and rationale: [docs/training.md](docs/training.md).
+[Training details](docs/training.md) cover equations, prompts, right padding, token boundaries, DDP/FSDP2 and data
+independence. Fixed inputs/seeds/settings make runs traceable; **bit-identical outputs across GPU counts, library
+versions, BF16 merging and deployment implementations are not promised**.
 
-**Backbones.** Qwen3.5 / 3.6 / 3.8 share the `qwen3_5` architecture and vocabulary, so switching is just `--base`.
-Qwen3.5-4B is fully trained and evaluated. **Qwen3.8-27B**, whose config is identical to JEV-27B-VL's, is verified end
-to end: load, init gate (|Δp| = 0), training, and corpus and image evaluation. Its LoRA (108.8M) and head (123k) match
-the JEV-27B card. Full 9B and 27B runs are next.
+## Completed results
 
-## 📊 Results
+Same evaluation rows. DI is the **old 6,000-request 35-benchmark recalculation, not the complete official index**.
+The historical 4B/r1 wide readout is tournament; the original JEV reference uses single and a different backend.
+This table does not isolate readout strategy or equal compute.
 
-These are results for **train-jev 4B**. Within each table, every model answers the same rows.
+| metric | 4B LoRA | 27B LoRA r1 | original JEV-27B-VL |
+|---|---:|---:|---:|
+| test KL, 6,000 rows, calibrated ↓ | 0.02239 | **0.01853** | 0.02075 |
+| OOD KL, 3,000 rows ↓ | 0.31073 | 0.11006 | **0.10842** |
+| DI 35,6,000 requests ↑ | 40.35 | **54.57** | 54.11 |
+| transfer-v4 accuracy, 656 rows ↑ | 77.90% | 85.06% | **85.21%** |
+| transfer-v4 ECE ↓ | 0.07468 | **0.05308** | 0.09731 |
+| transfer-v4 NLL ↓ | 0.74455 | **0.41130** | 0.46022 |
+| PK accuracy, 1,300 rows ↑ | 64.69% | 67.77% | **69.00%** |
+| PK ECE ↓ | **0.07569** | 0.10294 | 0.094 |
+| vision mean skill, 5 sets equally weighted ↑ | 0.69729 | 0.75999 | **0.78195** |
 
-| evaluation | Kev-4B | **train-jev 4B** | JEV-27B-VL | reference |
-|---|---:|---:|---:|---|
-| jev-distill `test_set_30k`, KL on Jev-labelled rows ↓ | 0.364 | **0.018** | 0.017 | JEV-27B card ≈ 0.017 |
-| jev-distill `ood` (unseen task families), KL ↓ | 0.624 | **0.311** | 0.108 | JEV-27B card 0.104 |
-| Decision Index 0.3 public index (35/37 benchmarks, 6k-row stratified sample) ↑ | 38.4 | **40.4** | 54.1 | board, same panel: vLLM-SR d3-mini 56.1, ezjev-4B 52.9, Sieve-4B 51.5 |
-| Kev `transfer-v4` (656 questions), accuracy ↑ | **0.817** | 0.779 | 0.852 | Jev 1.13: 0.857 |
-| zero-shot image decisions, 5 vision sets, mean skill ↑ | n/a | **0.697** | 0.782 | untrained Qwen3.5-4B 0.632 |
-| 13-dataset PK (1,300 rows), accuracy ↑ | 0.640 | **0.647** | 0.690 | Jev 1.13 API 0.700 |
-| 13-dataset PK, the 8 sources Kev never trained on ↑ | 0.570 | **0.603** | 0.645 | Jev 1.13 API 0.645 |
-| 13-dataset PK, ECE ↓ | 0.083 | **0.076** | 0.094 | Jev 1.13 API 0.130 |
-| single-request p50 latency (H20) | 17 ms | 43 ms | 96 ms | Jev 1.13 hosted API 370 ms incl. network |
+27B improves substantially over our 4B baseline, but does not beat the original JEV on every metric. The +0.46 DI
+margin has no paired significance/CI analysis. The 4B full-parameter run did not improve the overall result, so this
+27B run used LoRA. Single-seed limits, shared in-distribution states, protocol and hardware differences are explicit
+in [results §8/§10](docs/results.md). HLE/HoVer are not prerequisites for the completed old-protocol main result;
+the complete 37 panel is a separately tracked branch.
 
-**Takeaways.**
+## Installation and pinned inputs
 
-1. **The recipe reproduces**: in-distribution KL, the validation curve and the fitted temperatures (all ≈ 1.0) match
-   the official 27B report.
-2. **At 4B, model capacity is the bottleneck**: the gap to 27B opens on OOD tasks, knowledge reasoning and many-class
-   intent classification. On Decision Index train-jev 4B is in the same tier as Kev-4B; the leading 4B models score
-   11–16 points higher.
-3. **Image decisions survive text-only training**: all five vision sets improve (+6.5 points mean skill). Kev-4B
-   cannot take images.
-
-Per-area Decision Index scores, the PK results, the full training curve and protocol notes are in
-[docs/results.md](docs/results.md).
-
-## 💾 Install
-
-```shell
+```bash
 git clone https://github.com/shibing624/train-jev
 cd train-jev
 pip install -r requirements.txt
 ```
 
-This is a training repo, not a published Python package. From the repository root, run `python -m trainjev.train`.
+Python >=3.12. Tested: Python 3.12.11, torch 2.13.0+cu129, transformers 5.17.0, peft 0.21.0, fla 0.5.2.
+`requirements-tested.txt` records the reference environment; it is not a portable CUDA lock. Install matching
+CUDA torch/torchvision wheels first. CI uses CPU packages. `causal-conv1d` was not used for the main result.
 
-Requires Python ≥ 3.12, `transformers>=5.17` (Qwen3.5 / 3.8; transformers 4.x does not know `qwen3_5`), `peft>=0.21`, `torch>=2.6`. On CUDA, install
-`flash-linear-attention==0.5.2`; without it the Gated DeltaNet layers fall back to a slow PyTorch path.
+| input | pinned HF revision |
+|---|---|
+| `SargeDev/jev-distill-corpus-v3` | `75111a13a8455032f0435050bfc7e0c9026ecfe8` |
+| `Qwen/Qwen3.5-4B` (post-trained, not -Base) | `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a` |
+| `Qwen/Qwen3.8-27B` | `1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0` |
 
-| setup | peak memory / GPU | speed | one epoch |
-|---|---:|---:|---:|
-| 3× H20 96GB, `--no_gc --micro_tokens 4096` (reference) | 48.8 GB | 1.94 s/step | 2.8 h |
-| 1× H20 96GB, same flags | 48.8 GB | ~4.5 s/step | ~6.4 h |
-| less memory: keep gradient checkpointing on (default) | lower | slower | — |
-| **Qwen3.8-27B**: 1× H20 96GB, gradient checkpointing, `--micro_tokens 16384` | 75 GB | ~50 s/step | ~70 GPU-hours |
+```bash
+bash scripts/prepare_data.sh
+BASE_REPO=Qwen/Qwen3.8-27B BASE_DIR=models/Qwen3.8-27B bash scripts/prepare_data.sh
+```
 
-Inference: the 4B bf16 weights are 9.3 GB, so it fits on a single 24 GB GPU; 27B (text model, ~54 GB) needs an 80 GB-class GPU.
+Explicit overrides: `HF_ENDPOINT`, `DATA_REVISION`, `BASE_REVISION`. Record the actual revision, not only a folder
+name. Audit candidate training data with `scripts/audit_training_data.py`; do not recycle evaluation errors into training.
 
-## 🚀 Quick Start
+## Train, resume and calibrate
 
-```shell
-bash scripts/prepare_data.sh                                     # data/ and models/
-python scripts/check_init.py --base models/Qwen3.5-4B            # untrained head == base readout -> PASS
-GPUS=0,1,2 bash scripts/run_train.sh                             # -> runs/jev-4b/best
-CKPT=runs/jev-4b/best bash scripts/run_eval.sh                   # temperatures + test_set_30k / ood
-CKPT=runs/jev-4b/best PORT=8020 bash scripts/run_serve.sh        # System One API
+```bash
+GPUS=0,1,2 SAVE_STATE_EVERY=100 bash scripts/run_train.sh
+GPUS=0,1,2,3 SAVE_STATE_EVERY=100 bash scripts/run_train_27b.sh
+# Stop early without changing the full learning-rate schedule.
+GPUS=0 MAX_STEPS=3 OUT=runs/smoke bash scripts/run_train.sh
+# Same output, topology and settings; restores optimizer and all rank RNG state.
+GPUS=0,1,2,3 RESUME=1 OUT=runs/jev-27b bash scripts/run_train_27b.sh
+CKPT=runs/jev-4b/best bash scripts/run_eval.sh
+BASE=models/Qwen3.8-27B CKPT=runs/jev-27b/best OUT=eval/jev-27b bash scripts/run_eval.sh
+```
+
+Inference best/step bundles are not resumable training states. DCP state is in `state/`, with `state.old/` recovery
+when appropriate. Missing `--resume` state fails rather than silently retraining. Logs append. Interval 100 leaves
+state 5,100 after a 5,123-step run; final inference weights are step05123. A 4B 3+3 resume test matched uninterrupted 6-step
+adapter/head tensors exactly. Read [the full resume contract](docs/training.md#resuming-long-runs).
+
+| measured run | peak memory/GPU | time incl. periodic validation, not final evaluation |
+|---|---:|---:|
+| 4B, 3×H20,no_gc, micro_tokens4096 | ~48.8 GB | 2.77 h |
+| 27B, 4×H20,GC, micro_tokens16384 | 74.9 GB | 33.07 h, 23.24 s/step |
+
+Only the text model is trained. Image inference loads the full VL base and applies the text adapter. Generation
+with the adapter enabled/merged was not separately evaluated; unchanged base files are not proof of unchanged generation.
+
+## Serving and inference demos
+
+```bash
+BASE=models/Qwen3.5-4B CKPT=runs/jev-4b/best PORT=8020 STRATEGY=tournament bash scripts/run_serve.sh
 python examples/client.py --url http://127.0.0.1:8020
+python examples/batch_decisions.py --url http://127.0.0.1:8020
+python examples/smoke_systemone.py --url http://127.0.0.1:8020
+python examples/wide_choices.py --url http://127.0.0.1:8020 --compare
+python examples/local_inference.py --base models/Qwen3.5-4B --adapter runs/jev-4b/best --device cuda
 ```
 
-```shell
-curl -s localhost:8020/v1/systemone -H 'content-type: application/json' -d '{
-  "state": "Ticket #4821: every CSV export fails with a 504 after 60s. Status page: all systems operational.",
-  "questions": {
-    "is_outage": {"type": "noul", "instructions": "Is this most likely a platform-wide outage?"},
-    "route": {"type": "choice", "instructions": "Which team should handle this first?",
-              "criteria": {"billing": "payments", "infra": "timeouts and capacity", "product": "feature requests"}}
-  }}'
+The 4B API demos were executed: 3/3 fixed qualitative smoke cases, valid noul/choice/score output shapes and
+probability normalisation. These are usability checks, not a general accuracy estimate or latency benchmark.
+After upload, HF adapters include their head and temperatures:
+
+```bash
+python -m trainjev.serve --base models/Qwen3.5-4B --adapter shibing624/train-jev-4b-lora \
+  --adapter_revision v0.2.0 --port 8020 --strategy tournament
 ```
 
-```shell
-# 13-dataset PK
-python scripts/pk_build.py --out data/pk
-python scripts/pk_benchmark.py run --url http://127.0.0.1:8020 --suite data/pk --out eval/pk_jev-4b.jsonl
-python scripts/pk_benchmark.py report jev-4b=eval/pk_jev-4b.jsonl
+The tag is an example and must actually be created. Reproduce historical numbers with explicit tournament;
+default single is a different protocol.
 
-# Wide-choice intent classification (CLINC150 / BANKING77 / MASSIVE), the three > 16-option strategies
-URL=http://127.0.0.1:8020 NAME=jev-4b bash scripts/run_wide.sh
+### Wide choices
 
-# Qwen3.8-27B backbone
-python scripts/check_init.py --base models/Qwen3.8-27B
-GPUS=0,1,2,3,4,5,6,7 bash scripts/run_train_27b.sh
-```
+A–P are the only trained head labels. Single/permute use untrained base lm_head rows for extra options, zero bias.
+Suitable token labels establish computability, not validated wide-choice quality.
 
-### Wide choices (17–256 options)
+| strategy | accuracy (1,800) | ECE ↓ | p50 |
+|---|---:|---:|---:|
+| single (default) | 72.67% | 0.1622 | 52.3 ms |
+| tournament | 73.22% | **0.0499** | 108.9 ms |
+| permute | **77.11%** | 0.2180 | 171.2 ms |
 
-The decision head is trained on the labels A–P only. Beyond 16 options, `--strategy` (or `"strategy"` in the request
-body) picks how the question is read; all three come from JEV-27B-VL's `serve_decide.py`:
+Same 4B checkpoint, 600 each CLINC150/BANKING77/MASSIVE en. Permute improves accuracy but is underconfident;
+tournament is 6pp worse than single on MASSIVE en. The default remains unchanged pending independent-dev selection
+and calibration. Do not fit on these test labels. [Paired results and trace limits](docs/results.md#7-wide-choice-questions-17256-options).
 
-| strategy | how | passes (n options) | JEV-27B-VL default on |
-|---|---|---:|---|
-| `single` (default) | one pass: A–P from the trained head, then Q–Z, AA, AB, … from the backbone's own `lm_head` rows (zero bias) | 1 | Qwen |
-| `tournament` | groups of ≤ 16, then a final of the group winners plus the best runners-up (16 in total); only the trained A–P are ever read | ⌈n/16⌉ + 1 | Gemma |
-| `permute` | `single` over 4 option orders (given + 3 shuffles seeded by the question), averaged | 4 | — |
+## Next 4B/27B TODO
 
-The Qwen3.5 / 3.8 tokenizer has 256 suitable single-token labels (A–Z, then AA…, skipping pairs such as BQ or CJ
-that split), so `single` works as is. v0.1.0 only had `tournament`: the train-jev 4B BANKING77 / MASSIVE numbers in
-the PK come from it, while JEV-27B-VL's come from `single`. The three-way comparison on train-jev 4B is pending; run
-`scripts/run_wide.sh`.
+- [x] 4B LoRA/full comparison, complete 27B training and five old-protocol evaluations; public code/reports.
+- [x] Same 4B checkpoint wide-strategy comparison, 600 rows/scenario, accuracy/calibration/latency recorded.
+- [x] Audit tooling, optimizer/RNG resume, HF checkpoint loading and inference demos; actual HF upload remains separate.
+- [ ] Select wide strategy/post-average temperature on independent dev, then check a separate final test.
+- [ ] 4B-v2: verify gold provenance/revision/split/licence and semantic quality; add knowledge/reasoning/language
+      coverage with state/source-group/counterfactual-group isolation, not recycled evaluation questions.
+- [ ] Fixed control and full LR schedule; isolate actual gold dose, target softening and 2/4/8/16-option coverage.
+      Keep step/batch/micro-token budgets and report actual tokens/padding, not merely a shared upper bound.
+- [ ] Once data is fixed, compare LoRA r32/r64 or full fine-tuning; full is a candidate, not a predetermined winner.
+      Short probes use `STEPS=5123 MAX_STEPS=400`, not a400-step cosine schedule.
+- [ ] Complete and repeat promising 4B runs across seeds; pass independent dev/calibration/vision gates before 27B-v2.
+      Compare against current r1 and the original JEV on identical inputs; SOTA requires broader supporting evidence.
+- [ ] Complete 37 DI and vLLM numerical branches remain separate from the completed old 35 result.
+- [ ] Upload 4B/27B and record actual repo/tag/code revision.9B is planned, not trained.
 
-Decision Index, Kev transfer-v4, image and PK evaluation: [docs/evaluation.md](docs/evaluation.md).
+## License, citation and contact
 
-## ✅ TODO
+Code: [Apache-2.0](LICENSE). Base models and training/evaluation data retain their own terms.
 
-- [x] Reproduce the JEV recipe on Qwen3.5-4B and match the official training curve and in-distribution KL
-- [x] Temperature calibration, a System One compatible server, `single` / `tournament` / `permute` for > 16 options
-- [ ] Run the wide-choice evaluation on GPU (`scripts/run_wide.sh`) and pick the 4B default strategy from it
-- [x] Five evaluation suites: jev-distill (in-distribution/OOD), Decision Index 0.3, Kev transfer-v4, zero-shot images, 13-dataset PK
-- [x] Qwen3.8-27B backbone (the JEV-27B base): load, init gate, training and evaluation verified
-- [ ] **On top of the current LoRA recipe, run a full fine-tune (or high-rank LoRA) on jev-distill plus broader public
-      gold-labelled data.** The goal is to close the two largest gaps to the leading 4B models: Knowledge & Reasoning
-      (0.32 vs 0.44) and Language Understanding (0.39 vs 0.58). The top-ranked 4B models (d3-mini, RSI-Jev 4B) are
-      fully fine-tuned.
-- [ ] Keep calibration when mixing in hard gold labels: they tend to make the model over-confident, so try label
-      smoothing or a separate temperature for the gold part
-- [ ] Train Qwen3.5-9B and Qwen3.8-27B and run the full evaluation
-- [ ] Release train-jev 4B / 9B / 27B weights on Hugging Face
-- [ ] Image inputs in the `/v1/systemone` server (currently only in the evaluation script)
-
-## ☎️ Contact
-
-- Issues: [![GitHub issues](https://img.shields.io/github/issues/shibing624/train-jev.svg)](https://github.com/shibing624/train-jev/issues)
-- Email: xuming624@qq.com
-- WeChat: xuming624 (note: name-company-NLP) to join the NLP group
-
-## ⚠️ License
-
-The code is licensed under [Apache License 2.0](LICENSE). Data and base models follow their own licenses:
-[jev-distill-corpus-v3](https://huggingface.co/datasets/SargeDev/jev-distill-corpus-v3) (Apache-2.0, attribution
-requested) and [Qwen3.5 / Qwen3.8](https://huggingface.co/Qwen), and the public datasets used by the PK suite. This project is for research use; the authors accept no
-liability for any harm or loss caused by using it.
-
-## 😇 Citation
-
-```latex
+```bibtex
 @misc{train-jev,
   title={train-jev: Training JEV-style Decision Models},
   author={Ming Xu},
   year={2026},
-  howpublished={\url{https://github.com/shibing624/train-jev}},
+  howpublished={\url{https://github.com/shibing624/train-jev}}
 }
 ```
 
-## 😍 Contribute
-
-Contributions are welcome. Add unit tests under `tests/` and make sure `python -m pytest` passes before opening a
-PR; see [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## 💕 Acknowledgements
-
-- [autotrust/JEV-27B](https://huggingface.co/autotrust/JEV-27B) and [JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL): recipe, prompt template, `serve_decide.py`
-- [SargeDev/jev-distill-corpus-v3](https://huggingface.co/datasets/SargeDev/jev-distill-corpus-v3): training data
-- [ZefanCai/Open-Jev](https://huggingface.co/datasets/ZefanCai/Open-Jev): OOD task families
-- [jaredpalmer/kev](https://github.com/jaredpalmer/kev): Kev models and the `transfer-v4` suite
-- [apolinario/decision-index](https://github.com/apolinario/decision-index): Decision Index reproduction kit
-- [Jev's Architecture Unmasked](https://archerhume.com/posts/jevs-architecture-unmasked)
-- [Qwen3.5](https://huggingface.co/Qwen), [flash-linear-attention](https://github.com/fla-org/flash-linear-attention)
+Ming Xu / shibing624. [Issues](https://github.com/shibing624/train-jev/issues), xuming624@qq.com.
+Thanks to [JEV](https://huggingface.co/autotrust/JEV-27B-VL), SargeDev, Open-Jev,
+[Kev](https://github.com/jaredpalmer/kev), [Decision Index](https://github.com/apolinario/decision-index), Qwen and fla.
+Contribution workflow: [CONTRIBUTING.md](CONTRIBUTING.md).

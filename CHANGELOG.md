@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### v0.2.0 (2026-10-16)
+
+- Qwen3.8-27B LoRA（r16，5,123 步）训练完成并跑完五套评测；4B / 27B 结果、限制写入 README 和 `docs/results.md`。
+- 发布 HF 模型 `shibing624/train-jev-4b-lora`、`shibing624/train-jev-27b-lora`（LoRA + 决策头 + 温度）。`--adapter` 可直接传 HF repo id，会一并下载 `head.pt` 和 `calibration.json`，`--adapter_revision` 固定版本。
+- 固定底座 / 数据 revision（`scripts/prepare_data.sh`）和 Decision Index 抽样（`scripts/di_sample.py`：seed 20260919、去掉 45 / 61，输出抽样清单）。
+- 新增示例：`examples/local_inference.py`、`batch_decisions.py`、`wide_choices.py`、`smoke_systemone.py`。
+- 训练脚本支持 `RESUME` / `SAVE_STATE_EVERY` / `SEED` / `STEPS`，日志追加；`--resume` 找不到训练状态时直接报错，不会从头重训。
+- 删除 `patches/decision-index-resumable-download.patch`（只是下载问题的临时绕过）。
+
 #### features
 
 - `--full_ft` 全参训练（`trainjev/train_full.py`，FSDP2：fp32 主权重、梯度和 AdamW 状态按卡切分，bf16 计算；`--cpu_offload` 把分片放到主机内存）。各 rank 先在 meta 设备上建模型并切分，只有 rank 0 读 checkpoint、逐张量广播进分片，rotary `inv_freq` 重新计算；4B 实测加载阶段主机内存峰值 96 GiB → 31 GiB。全参 checkpoint 存文本模型权重（`model.safetensors`）+ `head.pt`，`load_trained` 统一加载 LoRA / 全参 checkpoint（`evaluate`、`eval_vision`、`serve` 共用）。4B 全参与 LoRA 的对照结果见 `docs/results.md` §8（全参未胜出，27B 用 LoRA）。

@@ -47,6 +47,15 @@ def _find(path):
     return None
 
 
+def require_state(path):
+    """Fail before model loading when --resume was requested without a completed training state."""
+    found = _find(path)
+    if found is None:
+        raise FileNotFoundError(f"No completed training state at {path} or {path}.old; "
+                                "an adapter/head inference checkpoint cannot resume optimizer/RNG state")
+    return found
+
+
 def save_state(path, body, head, opt, meta):
     """Collective: every rank must call it."""
     import torch.distributed.checkpoint as dcp

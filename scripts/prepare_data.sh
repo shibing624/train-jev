@@ -7,9 +7,19 @@ cd "$(dirname "$0")/.."
 
 DATA_DIR=${DATA_DIR:-data/jev-distill-corpus-v3}
 BASE_DIR=${BASE_DIR:-models/Qwen3.5-4B}
+BASE_REPO=${BASE_REPO:-Qwen/Qwen3.5-4B}
+DATA_REPO=${DATA_REPO:-SargeDev/jev-distill-corpus-v3}
+DATA_REVISION=${DATA_REVISION:-75111a13a8455032f0435050bfc7e0c9026ecfe8}
+if [[ -z "${BASE_REVISION:-}" ]]; then
+    case "$BASE_REPO" in
+        Qwen/Qwen3.5-4B) BASE_REVISION=851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a ;;
+        Qwen/Qwen3.8-27B) BASE_REVISION=1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 ;;
+        *) echo "Set BASE_REVISION explicitly for reproducible downloads" >&2; exit 2 ;;
+    esac
+fi
 
-huggingface-cli download --repo-type dataset SargeDev/jev-distill-corpus-v3 --local-dir "$DATA_DIR"
-huggingface-cli download Qwen/Qwen3.5-4B --local-dir "$BASE_DIR"
+hf download --repo-type dataset "$DATA_REPO" --revision "$DATA_REVISION" --local-dir "$DATA_DIR"
+hf download "$BASE_REPO" --revision "$BASE_REVISION" --local-dir "$BASE_DIR"
 
 python - "$DATA_DIR" <<'EOF'
 import sys, collections, json, os

@@ -45,7 +45,7 @@ from trainjev.data import encode_many, is_placeholder, load_rows, micro_batches
 from trainjev.losses import kl_rps_batch, pack_targets
 from trainjev.metrics import metrics
 from trainjev.modeling import LORA_TARGETS, RANGES, VERBALIZER_IDS, DecisionHead, check_verbalizers, last_hidden
-from trainjev.resume import load_state, save_state
+from trainjev.resume import load_state, require_state, save_state
 
 
 def parse_args(argv=None):
@@ -174,6 +174,8 @@ def head_probs(head, h, rows):
 
 def main(argv=None):
     a = parse_args(argv)
+    if a.resume:
+        require_state(os.path.join(a.out, "state"))
     if a.full_ft:
         from trainjev.train_full import main_full
 
@@ -271,6 +273,8 @@ def main(argv=None):
     state_dir = os.path.join(a.out, "state")
     if a.resume:
         meta = load_state(state_dir, body, head, opt)
+        if meta is None:
+            raise FileNotFoundError("Training state disappeared during loading; refusing a fresh run with --resume")
         if meta:
             start, best, hist = meta["step"], tuple(meta["best"]), meta["hist"]
             log(f"resumed from {state_dir} at step {start}")
