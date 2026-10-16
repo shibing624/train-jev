@@ -48,7 +48,7 @@ BASE=models/Qwen3.5-4B CKPT=runs/jev-4b/best PORT=8020 STRATEGY=tournament bash 
 ```
 
 Use `POST /v1/systemone`; the local backend is text-only. Readout strategy, batch token budget, max length, precision,
-calibration and model versions must be recorded. Historical 4B/r1 wide results use tournament; the original JEV
+calibration and model versions must be recorded. Historical train-jev-4b-lora / train-jev-27b-lora wide results use tournament; the original JEV
 reference uses single. The default server strategy is single, so defaults do not reproduce the historical wide score.
 For the native JEV `/v1/decide` backend, use its documented compatibility proxy; do not send scorer metadata as state.
 

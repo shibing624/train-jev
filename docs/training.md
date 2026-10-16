@@ -2,6 +2,30 @@
 
 This page explains the JEV System 1 recipe as implemented in `trainjev/train.py` and why each piece is there.
 
+## 0. Quick start
+
+```bash
+bash scripts/prepare_data.sh                                    # data/jev-distill-corpus-v3 + models/Qwen3.5-4B
+BASE_REPO=Qwen/Qwen3.8-27B BASE_DIR=models/Qwen3.8-27B bash scripts/prepare_data.sh   # the 27B backbone
+
+GPUS=0,1,2 bash scripts/run_train.sh                            # 4B, 3x H20, about 2.8 h
+GPUS=0,1,2,3 bash scripts/run_train_27b.sh                      # 27B, 4x H20, about 33 h
+GPUS=0 MAX_STEPS=3 OUT=runs/smoke bash scripts/run_train.sh     # smoke test (the LR schedule stays 5,123 steps)
+GPUS=0,1,2,3 RESUME=1 OUT=runs/jev-27b bash scripts/run_train_27b.sh   # continue an interrupted run
+
+CKPT=runs/jev-4b/best bash scripts/run_eval.sh                  # fit temperatures, then evaluate
+BASE=models/Qwen3.8-27B CKPT=runs/jev-27b/best OUT=eval/jev-27b bash scripts/run_eval.sh
+```
+
+The launchers read `GPUS`, `BASE`, `DATA`, `OUT`, `SEED`, `STEPS`, `MAX_STEPS`, `MICRO_TOKENS`, `EVAL_EVERY`,
+`SAVE_STATE_EVERY` (default 100) and `RESUME`. `prepare_data.sh` downloads the corpus and backbone at the revisions
+the published models were trained on; set `HF_ENDPOINT` for a mirror.
+
+| measured run | peak memory per GPU | wall time (incl. periodic validation) |
+|---|---:|---:|
+| 4B, 3x H20, gradient checkpointing off, `--micro_tokens 4096` | 48.8 GB | 2.77 h |
+| 27B, 4x H20, gradient checkpointing on, `--micro_tokens 16384` | 74.9 GB | 33.07 h (23.2 s/step) |
+
 ## 1. Task format
 
 Every training row is one typed question about a state:
@@ -214,8 +238,8 @@ complete DCP training states. Tokenisation is prefetched, **not** cached by conc
 prefixes; prompt token boundaries, sampling and option permutation remain unchanged. Optional shared-prefix and
 DDP communication-overlap changes are not enabled.
 
-CPU tests: all passed (incl. `tests/test_train_opt.py`); ruff passed. GPU checks use 4×H20, Qwen3.5-4B, seed 0, global batch 24, micro-token budget
-4,096, gradient checkpointing disabled, a 5,123-step LR schedule and a three-step stopping limit.
+GPU checks use 4×H20, Qwen3.5-4B, seed 0, global batch 24, micro-token budget 4,096, gradient checkpointing disabled,
+a 5,123-step LR schedule and a three-step stopping limit.
 
 | Check | Before | After | Interpretation |
 |---|---:|---:|---|
