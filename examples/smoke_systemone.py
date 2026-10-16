@@ -1,4 +1,7 @@
-"""Qualitative three-case protocol/model smoke check, not an accuracy benchmark.
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: Qualitative three-case protocol/model smoke check, not an accuracy benchmark.
 
 python examples/smoke_systemone.py --url http://127.0.0.1:8020
 Expected labels are declared before inference; failures are printed, never hidden.

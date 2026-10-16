@@ -1,4 +1,7 @@
-"""Three independent typed decisions about one state through POST /v1/systemone.
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: Three independent typed decisions about one state through POST /v1/systemone.
 
 python examples/batch_decisions.py --url http://127.0.0.1:8020
 This estimates decisions; it does not issue a refund or call an external tool.

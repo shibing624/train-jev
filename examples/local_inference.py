@@ -1,4 +1,7 @@
-"""Local GPU/CPU inference from a train-jev directory or a released HF adapter repo.
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: Local GPU/CPU inference from a train-jev directory or a released HF adapter repo.
 
 python examples/local_inference.py --base models/Qwen3.5-4B --adapter runs/jev-4b/best
 CPU fp32 inference needs substantial RAM and is slower; no text is generated.

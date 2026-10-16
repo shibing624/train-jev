@@ -10,8 +10,8 @@
 [![Python](https://img.shields.io/badge/Python-3.12%2B-green.svg)](requirements.txt)
 [![GitHub issues](https://img.shields.io/github/issues/shibing624/train-jev.svg)](https://github.com/shibing624/train-jev/issues)
 
-**train-jev** 开源复现了 JEV（[autotrust/JEV-27B](https://huggingface.co/autotrust/JEV-27B)）的 System 1 决策模型配方：
-在 Qwen3.5 / Qwen3.8 底座上训练 **LoRA + 24 槽位决策头**，用 KL 蒸馏 Jev 1.13 的完整输出分布。
+**train-jev** 开源复现了 JEV（TypeSafe Jev v1.13）的 System 1 决策模型配方：
+在 Qwen3.5 / Qwen3.8 底座上训练 **LoRA + 24 槽位决策头**，用 KL 蒸馏 Jev v1.13 的完整输出分布。
 模型不生成文本，而是在一次前向里直接给出每个选项的**概率**，可以直接拿来当置信度：
 有把握的交给程序自动处理，没把握的转给人。
 
@@ -23,25 +23,22 @@
 - **三种决策题型，一个请求问完**：是非题（`noul`）、选择题（`choice`）、打分题（`score`）共享同一段文本，各题独立作答、互不可见。
 - **概率默认已校准**：每个模型都带按题型拟合的温度，返回的概率可以直接设阈值。
 - **开箱即用的权重**：4B 和 27B 两个 LoRA 模型已发布在 Hugging Face，一行命令启动服务。
-- **27B 追平官方 JEV-27B-VL，而且校准更好**：同题评测下准确率持平，ECE 从 0.097 降到 0.053。
+- **27B 追平官方 TypeSafe Jev，而且校准更好**：同题评测下准确率持平，ECE 从 0.097 降到 0.053。
 - **能看图**：只用文本训练，底座的视觉编码器保持不变，训完的模型可以零样本对图像做决策。
-- **能训自己的**：单文件训练脚本，多卡 DDP / FSDP2，支持断点续训；换个 `--base` 就能换底座。
+- **训练模型，服务部署**：单文件训练脚本，多卡 DDP / FSDP2，支持断点续训；换个 `--base` 就能换底座。
 
 ## 模型
 
 | 模型 | 底座 | 可训练参数 | 推理显存 | 下载 |
 |---|---|---:|---|---|
-| **shibing624/train-jev-4b-lora**（Ours） | Qwen3.5-4B | LoRA 30.5M + 决策头 61k | 24 GB 显卡即可 | [🤗 HF](https://huggingface.co/shibing624/train-jev-4b-lora) |
-| **shibing624/train-jev-27b-lora**（Ours） | Qwen3.8-27B | LoRA 108.8M + 决策头 123k | 80 GB 显卡 | [🤗 HF](https://huggingface.co/shibing624/train-jev-27b-lora) |
-
-想要速度和低成本，用 4B；想要最高的准确率和最好的校准，用 27B。HF 上发布的是 LoRA adapter + 决策头 + 温度，
-底座权重会在首次启动时自动下载。
+| **shibing624/train-jev-4b-lora**（Ours） | Qwen3.5-4B | LoRA 30.5M + 决策头 61k | 24 GB | [🤗 HF](https://huggingface.co/shibing624/train-jev-4b-lora) |
+| **shibing624/train-jev-27b-lora**（Ours） | Qwen3.8-27B | LoRA 108.8M + 决策头 123k | 80 GB | [🤗 HF](https://huggingface.co/shibing624/train-jev-27b-lora) |
 
 ## 效果
 
-所有模型都在**同一批题**上评测。↑ 越高越好，↓ 越低越好，每行最好的结果加粗。
+所有模型都在**同一批题**上评测。↑ 越高越好，↓ 越低越好。
 
-| 评测 | train-jev-4b-lora<br>（Ours） | train-jev-27b-lora<br>（Ours） | Kev-4B | JEV-27B-VL | Jev 1.13<br>（官方 API） |
+| 评测 | train-jev-4b-lora<br>（Ours） | train-jev-27b-lora<br>（Ours） | Kev-4B | autotrust/JEV-27B-VL | TypeSafe Jev v1.13<br>（官方 API） |
 |---|---:|---:|---:|---:|---:|
 | **13 数据集分类 PK**（1,300 题） | | | | | |
 | 准确率 ↑ | 0.647 | 0.678 | 0.640 | 0.690 | **0.700** |
@@ -58,14 +55,12 @@
 | **零样本看图决策**（5 个视觉集） ↑ | 0.697 | 0.760 | 不支持 | **0.782** | – |
 | 单请求延迟 p50 | 43 ms | 82 ms | **17 ms** | 96 ms | 370 ms（含网络） |
 
-- **train-jev-27b-lora 和官方 JEV-27B-VL 的准确率持平**（transfer-v4 0.851 对 0.852，Decision Index 54.6 对 54.1），
+- **train-jev-27b-lora 和 autotrust/JEV-27B-VL 的准确率持平**（transfer-v4 0.851 对 0.852，Decision Index 54.6 对 54.1），
   **校准明显更好**：ECE 0.053 对 0.097，NLL 0.411 对 0.460。
 - **train-jev-4b-lora 在同尺寸里领先 Kev-4B**：PK 准确率 0.647 对 0.640，Kev 没见过的来源上 0.603 对 0.570，
   Decision Index 40.4 对 38.4；PK 的 ECE 0.076 是所有模型里最低的。
-- 差距：Jev 1.13 官方 API 在 PK 和 Decision Index 上仍然最好；看图决策 27B 比 JEV-27B-VL 低 2.2 个点。
+- 差距：TypeSafe Jev v1.13 官方 API 在 PK 和 Decision Index 上仍然最好。
 
-Decision Index 是 6,000 题的分层抽样，HLE / HoVer 两个基准无法重建所以剔除，不是官方总分；
-Jev 1.13 的 Decision Index 和 transfer-v4 分数分别取自官方榜单和 Kev 仓库。延迟在单张 H20 上测得。
 评测口径、逐项明细和更多对比见 [docs/results.md](docs/results.md)。
 
 ## 快速开始
@@ -76,8 +71,6 @@ Jev 1.13 的 Decision Index 和 transfer-v4 分数分别取自官方榜单和 Ke
 git clone https://github.com/shibing624/train-jev.git && cd train-jev
 pip install -r requirements.txt
 ```
-
-需要 Python 3.12+。CUDA 上建议装 `flash-linear-attention`（`requirements.txt` 已包含），否则 Qwen3.5 的线性注意力层会走很慢的参考实现。
 
 ### 启动服务
 
@@ -139,7 +132,7 @@ if resp["answers"]["billing"]["noul"] > 0.9:
     print("route to billing:", resp["answers"]["tone"]["choice"])
 ```
 
-更多示例（批量请求、超过 16 个选项的选择题、本地直接推理）见 [examples/](examples/) 和 [部署与推理文档](docs/serving.md)。
+更多示例见 [examples/](examples/) 和 [部署与推理文档](docs/serving.md)。
 
 ## 用自己的数据训练
 
@@ -184,8 +177,8 @@ flowchart LR
 ## Roadmap
 
 - [x] Qwen3.5-4B / Qwen3.8-27B LoRA 训练、评测并发布到 Hugging Face
-- [ ] 加入更广的公开金标数据，补齐知识推理和语言理解上和 Jev 1.13 的差距
-- [ ] 训练 Qwen3.5-9B
+- [ ] 加入更广的公开金标数据，补齐知识推理和语言理解上和 TypeSafe Jev v1.13 的差距
+- [ ] 训练 Full-finetune 的 Qwen3.8-27B
 - [ ] `/v1/systemone` 服务支持图像输入
 
 ## Citation
@@ -208,10 +201,10 @@ flowchart LR
 
 ## 致谢
 
-感谢 [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL) 公开配方，
-[SargeDev/jev-distill-corpus-v3](https://huggingface.co/datasets/SargeDev/jev-distill-corpus-v3) 提供训练语料，
-[jaredpalmer/kev](https://github.com/jaredpalmer/kev) 的评测集和对照模型，
-[Decision Index](https://github.com/apolinario/decision-index)，以及 [Qwen](https://huggingface.co/Qwen) 底座。
+- [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL) 公开配方，
+- [SargeDev/jev-distill-corpus-v3](https://huggingface.co/datasets/SargeDev/jev-distill-corpus-v3) 提供训练语料，
+- [jaredpalmer/kev](https://github.com/jaredpalmer/kev) 的评测集和对照模型，
+- [Decision Index](https://github.com/apolinario/decision-index)，以及 [Qwen](https://huggingface.co/Qwen) 底座。
 
 本项目是独立的算法研究复现，与 TypeSafe AI、autotrust 均无关联。
 

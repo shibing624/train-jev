@@ -1,4 +1,7 @@
-"""Compare wide-choice readouts on the same request, without changing the checkpoint.
+# -*- coding: utf-8 -*-
+"""
+@author: XuMing(xuming624@qq.com)
+@description: Compare wide-choice readouts on the same request, without changing the checkpoint.
 
 python examples/wide_choices.py --url http://127.0.0.1:8020 --compare
 Only A–P are trained head rows; extra single/permute rows use the base LM readout.

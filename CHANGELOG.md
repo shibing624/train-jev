@@ -1,5 +1,11 @@
 # 更新日志
 
+## [Unreleased]
+
+#### fixes
+
+- README 对照表里的官方模型名称不准确：`JEV-27B-VL` 改为 `autotrust/JEV-27B-VL`，`Jev 1.13` 改为 TypeSafe Jev v1.13。Roadmap 去掉「训练 Qwen3.5-9B」，改为训练 Full-finetune 的 Qwen3.8-27B。
+
 ## v0.2.0 (2026-10-16)
 
 - 发布 HF 模型 [shibing624/train-jev-4b-lora](https://huggingface.co/shibing624/train-jev-4b-lora) 和 [shibing624/train-jev-27b-lora](https://huggingface.co/shibing624/train-jev-27b-lora)（LoRA + 决策头 + 温度）。train-jev-27b-lora 在同题评测上准确率追平 JEV-27B-VL，ECE 0.053 对 0.097。
