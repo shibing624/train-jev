@@ -12,8 +12,7 @@
 
 **train-jev** 开源复现了 JEV（TypeSafe Jev v1.13）的 System 1 决策模型配方：
 在 Qwen3.5 / Qwen3.8 底座上训练 **LoRA + 24 槽位决策头**，用 KL 蒸馏 Jev v1.13 的完整输出分布。
-模型不生成文本，而是在一次前向里直接给出每个选项的**概率**，可以直接拿来当置信度：
-有把握的交给程序自动处理，没把握的转给人。
+模型不生成文本，而是在一次前向里直接给出每个选项的**概率**，可以直接拿来当置信度。
 
 服务接口兼容 TypeSafe [System One API](https://docs.typesafe.ai/api)（`POST /v1/systemone`），
 已经在调用 Jev 的代码只要换个地址就能接上。
