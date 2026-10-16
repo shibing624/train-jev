@@ -4,7 +4,7 @@
 
 #### fixes
 
-- README 对照表里的官方模型名称不准确：`JEV-27B-VL` 改为 `autotrust/JEV-27B-VL`，`Jev 1.13` 改为 TypeSafe Jev v1.13。Roadmap 去掉「训练 Qwen3.5-9B」，改为训练 Full-finetune 的 Qwen3.8-27B。
+- README / README_EN 对照表里的官方模型名称不准确：`JEV-27B-VL` 改为 `autotrust/JEV-27B-VL`，`Jev 1.13` 改为 TypeSafe Jev v1.13。Roadmap 去掉「训练 Qwen3.5-9B」，改为训练 Full-finetune 的 Qwen3.8-27B。
 
 ## v0.2.0 (2026-10-16)
 

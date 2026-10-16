@@ -61,7 +61,7 @@
   Decision Index 40.4 对 38.4；PK 的 ECE 0.076 是所有模型里最低的。
 - 差距：TypeSafe Jev v1.13 官方 API 在 PK 和 Decision Index 上仍然最好。
 
-评测口径、逐项明细和更多对比见 [docs/results.md](docs/results.md)。
+评测口径、逐项明细和更多对比见 [docs/results.md](https://github.com/shibing624/train-jev/blob/main/docs/results.md)。
 
 ## 快速开始
 
@@ -132,7 +132,7 @@ if resp["answers"]["billing"]["noul"] > 0.9:
     print("route to billing:", resp["answers"]["tone"]["choice"])
 ```
 
-更多示例见 [examples/](examples/) 和 [部署与推理文档](docs/serving.md)。
+更多示例见 [examples/](https://github.com/shibing624/train-jev/blob/main/examples/) 和 [部署与推理文档](https://github.com/shibing624/train-jev/blob/main/docs/serving.md)。
 
 ## 用自己的数据训练
 
@@ -149,7 +149,7 @@ GPUS=0,1,2 bash scripts/run_train.sh               # 4B：3 张 H20 约 2.8 小�
 GPUS=0,1,2,3 bash scripts/run_train_27b.sh         # 27B：4 张 H20 约 33 小时
 ```
 
-用 `--mix mydata.jsonl:2` 把自己的数据混进去。训练配方、断点续训、温度校准和显存估算见 [docs/training.md](docs/training.md)。
+用 `--mix mydata.jsonl:2` 把自己的数据混进去。训练配方、断点续训、温度校准和显存估算见 [docs/training.md](https://github.com/shibing624/train-jev/blob/main/docs/training.md)。
 
 ## 工作原理
 
@@ -163,16 +163,16 @@ flowchart LR
 
 决策头的 24 行从底座 `lm_head` 里对应 token（`false/true`、`0–5`、`A–P`）的行初始化，所以训练开始时模型的输出就等于底座本身的判断，
 训练只是在此基础上把判断"磨锋利"。损失是对教师分布的 KL，打分题再加 0.5 倍的 RPS 序数损失；
-训练时随机打乱 30% 选择题的选项，让模型按内容而不是位置作答。详见 [docs/training.md](docs/training.md)。
+训练时随机打乱 30% 选择题的选项，让模型按内容而不是位置作答。详见 [docs/training.md](https://github.com/shibing624/train-jev/blob/main/docs/training.md)。
 
 ## 文档
 
 | 文档 | 内容 |
 |---|---|
-| [docs/serving.md](docs/serving.md) | 部署与推理：服务参数、API 格式、示例、超过 16 个选项的读法 |
-| [docs/training.md](docs/training.md) | 训练配方、数据格式、断点续训、温度校准、显存与速度、换底座 |
-| [docs/evaluation.md](docs/evaluation.md) | 五套评测怎么跑、怎么复现 |
-| [docs/results.md](docs/results.md) | 全部评测结果、逐项明细和局限 |
+| [docs/serving.md](https://github.com/shibing624/train-jev/blob/main/docs/serving.md) | 部署与推理：服务参数、API 格式、示例、超过 16 个选项的读法 |
+| [docs/training.md](https://github.com/shibing624/train-jev/blob/main/docs/training.md) | 训练配方、数据格式、断点续训、温度校准、显存与速度、换底座 |
+| [docs/evaluation.md](https://github.com/shibing624/train-jev/blob/main/docs/evaluation.md) | 五套评测怎么跑、怎么复现 |
+| [docs/results.md](https://github.com/shibing624/train-jev/blob/main/docs/results.md) | 全部评测结果、逐项明细和局限 |
 
 ## Roadmap
 
@@ -194,10 +194,14 @@ flowchart LR
 
 ## Contact
 
-- Issue：[![GitHub issues](https://img.shields.io/github/issues/shibing624/train-jev.svg)](https://github.com/shibing624/train-jev/issues)
+- GitHub Issue：[![GitHub issues](https://img.shields.io/github/issues/shibing624/train-jev.svg)](https://github.com/shibing624/train-jev/issues)
 - 邮件：xuming624@qq.com
+- 微信群：添加微信号 `xuming624`，备注 "llm"，加入技术交流群
 
-欢迎贡献，流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+<img src="https://raw.githubusercontent.com/shibing624/agentica/main/docs/assets/wechat.jpeg" width="200" alt="微信群二维码" />
+
+欢迎贡献，流程见 [CONTRIBUTING.md](https://github.com/shibing624/train-jev/blob/main/CONTRIBUTING.md)。
 
 ## 致谢
 
@@ -210,4 +214,4 @@ flowchart LR
 
 ## License
 
-代码采用 [Apache-2.0](LICENSE)。Qwen 底座同为 Apache-2.0；训练和评测数据遵循各自的许可。
+代码采用 [Apache-2.0](https://github.com/shibing624/train-jev/blob/main/LICENSE)。Qwen 底座同为 Apache-2.0；训练和评测数据遵循各自的许可。
