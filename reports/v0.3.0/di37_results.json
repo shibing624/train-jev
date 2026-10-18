@@ -127,5 +127,5 @@
     "Not mixed with the frozen 2494-question PK or the historical 35-benchmark sample",
     "Field-level accuracy diagnostics are not the canonical F1/nDCG metrics or DI-index significance"
   ],
-  "publication": {"hf_upload_completed": false, "git_push_completed": false}
+  "publication": {"hf_upload_completed": true, "git_push_completed": false}
 }

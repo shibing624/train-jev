@@ -24,7 +24,7 @@ already calls Jev only needs a new URL.
   questions share the text but are answered independently and can't read each other.
 - **Calibrated by default**: every model ships with per-type temperatures, so you can put thresholds on the
   probabilities directly.
-- **Ready-to-run weights**: both v0.3.0 LoRA packages are built and validated locally, awaiting upload to the Hugging Face repositories below; one command to serve.
+- **Ready-to-run weights**: both v0.3.0 LoRA models are published on Hugging Face; one command to serve.
 - **The 27B model beats autotrust/JEV-27B-VL**: 78.7% vs 73.5% task-macro accuracy on a sealed 2,494-question PK
   (paired +5.25pp, 95% interval [4.01, 6.50]), ahead on public gold, legacy classification and rules; transfer-v4 ECE 0.032 vs 0.097.
 - **It can see**: trained on text only with the vision encoder left untouched, the model makes zero-shot decisions
@@ -38,7 +38,8 @@ already calls Jev only needs a new URL.
 | **shibing624/train-jev-4b-lora** (Ours) | v0.3.0 | Qwen3.5-4B | LoRA 30.5M + head 61k | 24 GB | [🤗 HF](https://huggingface.co/shibing624/train-jev-4b-lora) |
 | **shibing624/train-jev-27b-lora** (Ours) | v0.3.0 | Qwen3.8-27B | LoRA 108.8M + head 123k | 80 GB | [🤗 HF](https://huggingface.co/shibing624/train-jev-27b-lora) |
 
-v0.3.0 has not been uploaded; HF still serves v0.2.0. The upload workflow will preserve the old weights under the `v0.2.0` tag before replacing main; then load the old version with `--adapter_revision v0.2.0`.
+Both repositories serve v0.3.0 on main and under the `v0.3.0` tag; the previous weights stay under the `v0.2.0` tag,
+loadable with `--adapter_revision v0.2.0`.
 
 ## Results
 

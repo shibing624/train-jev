@@ -15,14 +15,14 @@
 
 - **27B v0.3.0**：同一配方（同数据、12.5% 新监督、学习率 2e-5 / 4e-5、seed 17、2,048 步学习率表）应用到 Qwen3.8-27B，以 v0.2.0 27B 为起点续训 1,024 步（3×H20，7.9 h），开发集选第 512 步。封存 2,494 题同题 PK 宏平均 73.99% → 78.72%（配对 +4.73pp [3.71, 5.80]），**对 autotrust/JEV-27B-VL +5.25pp [4.01, 6.50]**，公开金标 / 旧分类 / 规则三类都领先；transfer-v4 0.851 → 0.858、ECE 0.053 → 0.032；13 数据集 PK 0.678 → 0.687（p=0.073）；Decision Index 历史 35 基准采样 54.57 → 56.15（JEV-27B-VL 54.11），37 基准全量 53.88 → 55.58（配对题级 +1.03pp [0.86, 1.20]，30 升 / 6 降）。
 - 4B v0.3.0 Decision Index 37 基准全量 37.40 → 39.01（配对 +0.97pp [0.78, 1.17]，3 个基准显著下降）；历史 35 采样 40.35 → 41.49；transfer-v4 0.779 → 0.805。
-- README / README_EN 的模型与效果表改为 v0.3.0 4B + 27B；`docs/results*.md` 新增 §13；`reports/v0.3.0/external_final2.json` 扩为六模型（含 27B v0.2.0 / v0.3.0）。HF 上传流程会先将旧权重保留在 `v0.2.0` tag，再替换 main；本机尚未上传。
+- README / README_EN 的模型与效果表改为 v0.3.0 4B + 27B；`docs/results*.md` 新增 §13；`reports/v0.3.0/external_final2.json` 扩为六模型（含 27B v0.2.0 / v0.3.0）。已发布到 [shibing624/train-jev-4b-lora](https://huggingface.co/shibing624/train-jev-4b-lora) 和 [shibing624/train-jev-27b-lora](https://huggingface.co/shibing624/train-jev-27b-lora)：main 与 `v0.3.0` tag 为新权重，旧权重保留在 `v0.2.0` tag。
 - 补齐 27B DI37 全量与发布模型卡：三卡互斥分片合并后 110,087 请求 / 272,229 答案字段全部成功，40 条跨 GPU 答案含概率精确一致；换旧温度 0 翻转。端到端 7.93 h，不作为单 GPU 加速证据。新增 `reports/v0.3.0/di37_results.json`；诊断区间不作为 DI 指数显著性，保留 Chess/HLE 退步及 ACOS 指标差异，无 JEV-27B-VL 全量配对。
 - 新训练组合：旧 Jev 分布蒸馏回放 + GSM8K 双干扰项视图、PAWS、AQuA-RAT、QASC、HelpSteer2 和双算法校验的规则数据。以 v0.2.0 LoRA/决策头续训，每步 12.5% 新监督；三卡完整训练 2,048 步，开发集保护条件选择 512 步 checkpoint。
 - 同题最终 PK 使用第二批封存的 2,494 条未训练样本，22 个任务宏平均准确率 63.59% → 74.18%，增益 +10.60pp（95% group-bootstrap 区间 [9.44, 11.77]）。公开金标宏平均 57.03% → 63.25%；旧任务 70.22% → 69.89%，宽选项持平；保留退化及局限，不将采样 PK 当作 Decision Index 分数。
 - 校准后宏平均 NLL 1.050 → 0.751、Brier 0.496 → 0.350；同 H20 充分预热、模型顺序复验后的 p50 41.42 / 40.88ms，开销基本持平。第一候选宽选项保护失败后未发布，首次最终集未用于修复训练。
 - 同一批 2,494 条上按各自原生推理协议补测 Kev-4B 与 autotrust/JEV-27B-VL（不重训、不重拟合温度）：任务宏平均 v0.3.0 74.18% / Kev-4B 63.50% / JEV-27B-VL 73.47%。对 Kev-4B 配对 +10.69pp [8.89, 12.59]；对 JEV-27B-VL +0.71pp [−0.82, 2.34]，统计持平，规则任务领先、旧分类任务落后 2.78pp。明细 `reports/v0.3.0/external_final2.json`。
 - 当前训练入口新增 `--init_adapter`（保留可训练 LoRA/head，优化器重置）、`--mix_fraction`（同类型定额替换）、`--kind_counts` 与实际采样/token 统计。新增可选 `--brier_w`，默认 0，本版最终配方未开启；旧默认损失和推理接口保留。
-- 本地发布包包含可加载的 adapter/head/calibration、无内部路径的训练来源/真实指标和完整性清单；原 v0.2.0 权重不覆盖，未执行 Git push 或 HF 上传。memory-write 专项与派生记忆生成单列为 v0.4.0 待办。
+- 本地发布包包含可加载的 adapter/head/calibration、无内部路径的训练来源/真实指标和完整性清单；原 v0.2.0 权重保留在 HF 的 `v0.2.0` tag，不覆盖。memory-write 专项与派生记忆生成单列为 v0.4.0 待办。
 
 ## v0.2.0 (2026-10-16)
 

@@ -21,7 +21,7 @@
 
 - **三种决策题型，一个请求问完**：是非题（`noul`）、选择题（`choice`）、打分题（`score`）共享同一段文本，各题独立作答、互不可见。
 - **概率默认已校准**：每个模型都带按题型拟合的温度，返回的概率可以直接设阈值。
-- **开箱即用的权重**：4B 和 27B 两个 LoRA 模型（v0.3.0）已完成本地打包和验证，待上传到下列 Hugging Face 仓库；一行命令启动服务。
+- **开箱即用的权重**：4B 和 27B 两个 LoRA 模型（v0.3.0）已发布在 Hugging Face，一行命令启动服务。
 - **27B 超过 autotrust/JEV-27B-VL**：封存的 2,494 题同题 PK 上宏平均准确率 78.7% 对 73.5%（配对 +5.25pp，95% 区间 [4.01, 6.50]），
   公开金标、旧分类、规则三类都领先；transfer-v4 上 ECE 0.032 对 0.097。
 - **能看图**：只用文本训练，底座的视觉编码器保持不变，训完的模型可以零样本对图像做决策。
@@ -34,7 +34,7 @@
 | **shibing624/train-jev-4b-lora**（Ours） | v0.3.0 | Qwen3.5-4B | LoRA 30.5M + 决策头 61k | 24 GB | [🤗 HF](https://huggingface.co/shibing624/train-jev-4b-lora) |
 | **shibing624/train-jev-27b-lora**（Ours） | v0.3.0 | Qwen3.8-27B | LoRA 108.8M + 决策头 123k | 80 GB | [🤗 HF](https://huggingface.co/shibing624/train-jev-27b-lora) |
 
-v0.3.0 尚未上传，HF 当前仍为 v0.2.0。上传流程会先将原权重保留在 `v0.2.0` tag，再替换 main；届时用 `--adapter_revision v0.2.0` 加载旧版。
+两个仓库的 main 和 `v0.3.0` tag 都是 v0.3.0 权重；旧版保留在 `v0.2.0` tag，用 `--adapter_revision v0.2.0` 加载。
 
 ## 效果
 
