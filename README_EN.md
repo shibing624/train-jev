@@ -61,7 +61,7 @@ Every model answers **the same questions**. ↑ higher is better, ↓ lower is b
 | accuracy ↑ | 0.805 | **0.858** | 0.817 | 0.852 | 0.857 |
 | ECE ↓ | 0.054 | **0.032** | 0.042 | 0.097 | – |
 | NLL ↓ | 0.596 | **0.377** | 0.435 | 0.460 | – |
-| **Decision Index 0.3, historical sample** (35 benchmarks, 6,000 questions) ↑ | 41.5 | ⏳ | 38.4 | 54.1 | **59.7** |
+| **Decision Index 0.3, historical sample** (35 benchmarks, 6,000 questions) ↑ | 41.5 | 56.1 | 38.4 | 54.1 | **59.7** |
 | **Decision Index 0.3, full public text panel** (37 benchmarks, 110,087 requests, `single`) ↑ | 39.01 | ⏳ | – | – | – |
 | **Distillation fidelity** (jev-distill, raw logits) | | | | | |
 | in-distribution KL ↓ | 0.023 | **0.019** | 0.387 | 0.021 | – |
@@ -71,7 +71,7 @@ Every model answers **the same questions**. ↑ higher is better, ↓ lower is b
 
 - **train-jev-27b-lora beats autotrust/JEV-27B-VL**: paired task-macro **+5.25pp [4.01, 6.50]** on the sealed PK; public gold
   +8.41pp, legacy classification +2.22pp [0.61, 3.90], rules +9.20pp; transfer-v4 accuracy 0.858 vs 0.852, ECE 0.032 vs 0.097,
-  NLL 0.377 vs 0.460. It is still slightly behind on image decisions and OOD KL.
+  NLL 0.377 vs 0.460. Historical 35-panel Decision Index 56.1 vs 54.1 (27B v0.2.0: 54.6). It is still slightly behind on image decisions and OOD KL.
 - **train-jev-4b-lora leads Kev-4B at the same size**: sealed PK +10.69pp [8.89, 12.59], historical 35-panel Decision Index
   41.5 vs 38.4; transfer-v4 accuracy 0.805 vs 0.817 is slightly lower, with better ECE. The 4B model ties JEV-27B-VL on the
   sealed PK (+0.71pp [−0.82, 2.34]).

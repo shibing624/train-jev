@@ -424,12 +424,13 @@ jev-distill teacher, so they are not used for KL.
 | transfer-v4 accuracy ↑ | 0.779 | 0.805 | 0.851 | 0.858 |
 | transfer-v4 ECE ↓ | 0.075 | 0.054 | 0.053 | 0.032 |
 | transfer-v4 NLL ↓ | 0.745 | 0.596 | 0.411 | 0.377 |
-| Decision Index 35-benchmark sample ↑ | 40.35 | 41.49 | 54.57 | ⏳ |
+| Decision Index 35-benchmark sample ↑ | 40.35 | 41.49 | 54.57 | 56.15 |
 | Decision Index 37-benchmark full ↑ | 37.40 | 39.01 | 53.88 | ⏳ |
 | Vision mean skill ↑ | 0.697 | 0.693 | 0.760 | 0.765 |
 | PK p50 latency | 43.5 ms | 44.9 ms | 81.9 ms | 84.5 ms |
 
 - PK pairing: 4B v0.3.0 vs v0.2.0 discordant 24 / 30 (p=0.50); 27B 25 / 13 (p=0.073).
+- Decision Index 35-benchmark sample: 4B 22 up / 9 down, 27B 23 up / 7 down; all five 27B areas up (knowledge +2.7, tools +1.8, arts +1.2, retrieval +1.0, language +0.4 skill points). About 150 questions per benchmark, so single benchmarks are noisy.
 - 4B Decision Index 37 full: all 110,087 requests ok; paired question-level macro +0.97pp [0.78, 1.17]; all five areas up
   (tools +3.0, retrieval +2.1, language +1.5, arts +0.9, knowledge +0.7 skill points); 25 benchmarks up / 10 down / 2 equal,
   McNemar-significant 17 up / 3 down; #38 skill 8.0 → 5.8, #44 −2.3 and #37 −1.5 significantly down. The panel only has
