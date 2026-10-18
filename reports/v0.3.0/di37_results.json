@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "evaluated_on": "2026-10-18",
+  "release": "v0.3.0",
+  "edition": "0.3",
+  "panel_id": "decision-index-0.3",
+  "scope": "Complete exported public 37-benchmark scoreable text panel; not the private Full leaderboard or full multimodal HLE",
+  "requests_per_model": 110087,
+  "subquestions_per_model": 272229,
+  "indexed_catalogs": 37,
+  "public_text_export_complete": true,
+  "canonical_scorer_complete": false,
+  "canonical_scorer_complete_note": "The broader scorer suite includes display benchmarks outside this indexed text export; all 37 indexed benchmarks are covered.",
+  "input": {
+    "filename": "official37-scoreable-110087.jsonl.gz",
+    "sha256_compressed": "ce5a9250c1d7cc356c40f95296c52efd87ad8e3352186569cbda9f0b9a948de9",
+    "sha256_uncompressed": "1a2875db806c4d7d8f5fe0f2ddaa01c7d324a304a10cb15db16d57d5a915136b",
+    "catalog_counts": {
+      "1": 1694, "2": 685, "3": 508, "4": 3080, "5": 5500, "9": 88,
+      "11": 123, "12": 3200, "20": 5000, "21": 2628, "22": 2000, "23": 5000,
+      "25": 196, "28": 1267, "29": 10042, "30": 2638, "31": 5000, "32": 752,
+      "33": 1650, "36": 220, "37": 5000, "38": 1565, "39": 979, "40": 4600,
+      "41": 3006, "42": 5500, "43": 570, "44": 5000, "45": 501, "50": 1676,
+      "56": 2000, "57": 12032, "58": 5507, "59": 2700, "61": 4000, "62": 3652, "64": 528
+    }
+  },
+  "protocol": {
+    "backend": "HF transformers; LoRA merged into bf16 text backbone; fp32 decision head",
+    "strategy": "single",
+    "max_len": 32768,
+    "batch_tokens": 32768,
+    "calibration_refit": false,
+    "benchmark_dependent_strategy": false,
+    "same_payloads_and_frozen_source_as_v020": true,
+    "runner_sha256": "f4c9f36c4c557f537f1d8184db7bf00c5a84d9f4f0aa67f8c06198cead25818d"
+  },
+  "metrics_note": "Balanced skill and balanced raw are canonical 0-100 indices, not overall accuracy. Per-benchmark skill below is on a 0-1 scale. Paired field-accuracy diagnostics do not give a confidence interval for the DI index; McNemar tests are uncorrected for multiple comparisons.",
+  "models": {
+    "train-jev-4b-lora": {
+      "hf_repo": "shibing624/train-jev-4b-lora",
+      "base": "Qwen/Qwen3.5-4B",
+      "requests": 110087,
+      "statuses": {"ok": 110087},
+      "request_errors": 0,
+      "coverage": 1.0,
+      "scores": {"balanced_skill": 39.01, "balanced_raw": 54.35, "breadth_skill": 37.86},
+      "v020_scores": {"balanced_skill": 37.40, "balanced_raw": 52.98},
+      "index_delta": 1.61,
+      "area_skill": {"knowledge": 0.2868, "language": 0.4028, "retrieval": 0.3657, "tools": 0.6081, "arts": 0.2751},
+      "benchmark_skill_changes": {"up": 25, "down": 10, "equal": 2},
+      "benchmark_skill": {
+        "1": 0.8829, "2": 0.5658, "3": 0.6027, "4": 0.5689, "5": 0.6118, "9": 0.2727,
+        "11": 0.6164, "12": 0.4399, "20": 0.5792, "21": 0.1963, "22": 0.0726, "23": 0.2130,
+        "25": 0.1701, "28": 0.4192, "29": 0.7691, "30": 0.4195, "31": 0.0396, "32": 0.3172,
+        "33": 0.3294, "36": 0.3495, "37": 0.2336, "38": 0.0580, "39": 0.7132, "40": 0.1515,
+        "41": 0.1397, "42": 0.5961, "43": 0.2206, "44": 0.3076, "45": 0.0000, "50": 0.1410,
+        "56": 0.0920, "57": 0.4339, "58": 0.4828, "59": 0.0603, "61": 0.2520, "62": 0.6627, "64": 0.4484
+      },
+      "paired_accuracy_diagnostic": {
+        "gold_fields": 234641,
+        "macro_delta_pp": 0.97,
+        "group_bootstrap_95ci_pp": [0.78, 1.17],
+        "mcnemar_p_lt_005_up": 17,
+        "mcnemar_p_lt_005_down": 3,
+        "multiple_comparison_correction": false,
+        "significant_diagnostic_decline_catalogs": [37, 38, 44]
+      },
+      "temperature_audit": {"retempered_index": 39.01, "answer_flips": 0, "max_benchmark_skill_diff": 0.0},
+      "timing": {"full_stage_seconds": 12273, "hardware": "One H20, shared hardware"},
+      "limitations": ["Modest gain, not uniform", "ACOS #38 skill drops 0.0801 to 0.0580; field accuracy drops about 6.3pp"]
+    },
+    "train-jev-27b-lora": {
+      "hf_repo": "shibing624/train-jev-27b-lora",
+      "base": "Qwen/Qwen3.8-27B",
+      "requests": 110087,
+      "statuses": {"ok": 110087},
+      "request_errors": 0,
+      "coverage": 1.0,
+      "scores": {"balanced_skill": 55.58, "balanced_raw": 66.42, "breadth_skill": 54.65},
+      "v020_scores": {"balanced_skill": 53.88, "balanced_raw": 65.08},
+      "index_delta": 1.70,
+      "area_skill": {"knowledge": 0.4346, "language": 0.5963, "retrieval": 0.5568, "tools": 0.7443, "arts": 0.4178},
+      "benchmark_skill_changes": {"up": 30, "down": 6, "equal": 1},
+      "benchmark_skill": {
+        "1": 0.9442, "2": 0.6210, "3": 0.8274, "4": 0.7432, "5": 0.8685, "9": 0.5455,
+        "11": 0.6546, "12": 0.6573, "20": 0.8522, "21": 0.1834, "22": 0.4235, "23": 0.2948,
+        "25": 0.2721, "28": 0.6748, "29": 0.9125, "30": 0.6074, "31": 0.0869, "32": 0.4165,
+        "33": 0.3411, "36": 0.4274, "37": 0.4382, "38": 0.2124, "39": 0.7953, "40": 0.2978,
+        "41": 0.4309, "42": 0.7200, "43": 0.5992, "44": 0.4572, "45": 0.0000, "50": 0.1202,
+        "56": 0.2840, "57": 0.6040, "58": 0.7047, "59": 0.6108, "61": 0.5060, "62": 0.7265, "64": 0.6330
+      },
+      "paired_accuracy_diagnostic": {
+        "gold_fields": 234641,
+        "macro_delta_pp": 1.03,
+        "group_bootstrap_95ci_pp": [0.86, 1.20],
+        "mcnemar_p_lt_005_up": 17,
+        "mcnemar_p_lt_005_down": 2,
+        "multiple_comparison_correction": false,
+        "significant_diagnostic_decline_catalogs": [31, 38]
+      },
+      "temperature_audit": {"retempered_index": 55.58, "answer_flips": 0, "max_benchmark_skill_diff": 0.0},
+      "execution_audit": {
+        "unique_run_ids": 110087,
+        "all_payloads_and_answer_keys_verified": true,
+        "runtime_checkpoint_and_source_pins_intact": true,
+        "gpus": [3, 0, 2],
+        "row_ranges_half_open": [[0, 43144], [43144, 54542], [54542, 110087]],
+        "cross_gpu_sampled_replays": 40,
+        "sample_selection": "20 evenly spaced indices per shard; no gold filtering",
+        "answers_and_probabilities_exactly_equal": true,
+        "results_sha256": "0cc7b0db0950fbc3be386a07ea2fe8907e775e8614676000845e7e2a5c692f7b"
+      },
+      "timing": {
+        "request_wall_span_seconds": 27933.67177,
+        "sum_request_wall_seconds": 56096.836423248984,
+        "end_to_end_seconds": 28557.1,
+        "note": "Three-GPU parallel wall time includes a controlled restart; end-to-end also includes loading, cross-GPU replays, merge, scoring and auditing. Not a single-GPU inference speedup."
+      },
+      "hle": {"requests": 501, "v020_raw_accuracy": 0.0739, "raw_accuracy": 0.0599, "skill": 0.0, "chance_baseline": 0.1641, "mcnemar_p": 0.18924713134765625},
+      "limitations": ["Modest gain, not uniform", "ChessBench accuracy drops 16.96% to 16.16%", "HLE raw accuracy decline is not significant; skill zero in both versions", "ACOS target per-review F1 and DI skill improve, while field-accuracy diagnostic drops about 0.14pp"]
+    }
+  },
+  "limitations": [
+    "One checkpoint and one seed per version and size",
+    "No JEV-27B-VL full-panel pairing; its 6000-question result is the historical 35-benchmark sample",
+    "Neither the private Full leaderboard nor full multimodal HLE",
+    "Not mixed with the frozen 2494-question PK or the historical 35-benchmark sample",
+    "Field-level accuracy diagnostics are not the canonical F1/nDCG metrics or DI-index significance"
+  ],
+  "publication": {"hf_upload_completed": false, "git_push_completed": false}
+}

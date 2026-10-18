@@ -24,7 +24,7 @@ already calls Jev only needs a new URL.
   questions share the text but are answered independently and can't read each other.
 - **Calibrated by default**: every model ships with per-type temperatures, so you can put thresholds on the
   probabilities directly.
-- **Ready-to-run weights**: 4B and 27B LoRA models (v0.3.0) on Hugging Face, one command to serve.
+- **Ready-to-run weights**: both v0.3.0 LoRA packages are built and validated locally, awaiting upload to the Hugging Face repositories below; one command to serve.
 - **The 27B model beats autotrust/JEV-27B-VL**: 78.7% vs 73.5% task-macro accuracy on a sealed 2,494-question PK
   (paired +5.25pp, 95% interval [4.01, 6.50]), ahead on public gold, legacy classification and rules; transfer-v4 ECE 0.032 vs 0.097.
 - **It can see**: trained on text only with the vision encoder left untouched, the model makes zero-shot decisions
@@ -38,7 +38,7 @@ already calls Jev only needs a new URL.
 | **shibing624/train-jev-4b-lora** (Ours) | v0.3.0 | Qwen3.5-4B | LoRA 30.5M + head 61k | 24 GB | [🤗 HF](https://huggingface.co/shibing624/train-jev-4b-lora) |
 | **shibing624/train-jev-27b-lora** (Ours) | v0.3.0 | Qwen3.8-27B | LoRA 108.8M + head 123k | 80 GB | [🤗 HF](https://huggingface.co/shibing624/train-jev-27b-lora) |
 
-The v0.2.0 weights stay on HF under the `v0.2.0` tag; load them with `--adapter_revision v0.2.0`.
+v0.3.0 has not been uploaded; HF still serves v0.2.0. The upload workflow will preserve the old weights under the `v0.2.0` tag before replacing main; then load the old version with `--adapter_revision v0.2.0`.
 
 ## Results
 
@@ -62,7 +62,7 @@ Every model answers **the same questions**. ↑ higher is better, ↓ lower is b
 | ECE ↓ | 0.054 | **0.032** | 0.042 | 0.097 | – |
 | NLL ↓ | 0.596 | **0.377** | 0.435 | 0.460 | – |
 | **Decision Index 0.3, historical sample** (35 benchmarks, 6,000 questions) ↑ | 41.5 | 56.1 | 38.4 | 54.1 | **59.7** |
-| **Decision Index 0.3, full public text panel** (37 benchmarks, 110,087 requests, `single`) ↑ | 39.01 | ⏳ | – | – | – |
+| **Decision Index 0.3, full public text panel** (37 benchmarks, 110,087 requests, `single`) ↑ | 39.01 | **55.58** | – | – | – |
 | **Distillation fidelity** (jev-distill, raw logits) | | | | | |
 | in-distribution KL ↓ | 0.023 | **0.019** | 0.387 | 0.021 | – |
 | out-of-distribution KL ↓ | 0.483 | 0.123 | 0.624 | **0.108** | – |
@@ -71,11 +71,12 @@ Every model answers **the same questions**. ↑ higher is better, ↓ lower is b
 
 - **train-jev-27b-lora beats autotrust/JEV-27B-VL**: paired task-macro **+5.25pp [4.01, 6.50]** on the sealed PK; public gold
   +8.41pp, legacy classification +2.22pp [0.61, 3.90], rules +9.20pp; transfer-v4 accuracy 0.858 vs 0.852, ECE 0.032 vs 0.097,
-  NLL 0.377 vs 0.460. Historical 35-panel Decision Index 56.1 vs 54.1 (27B v0.2.0: 54.6). It is still slightly behind on image decisions and OOD KL.
+  NLL 0.377 vs 0.460. Historical 35-panel Decision Index 56.1 vs 54.1 (27B v0.2.0: 54.6); 37-benchmark full panel 53.88 → 55.58. It is still slightly behind on image decisions and OOD KL.
 - **train-jev-4b-lora leads Kev-4B at the same size**: sealed PK +10.69pp [8.89, 12.59], historical 35-panel Decision Index
   41.5 vs 38.4; transfer-v4 accuracy 0.805 vs 0.817 is slightly lower, with better ECE. The 4B model ties JEV-27B-VL on the
   sealed PK (+0.71pp [−0.82, 2.34]).
 - Gaps: the TypeSafe Jev v1.13 API is still best on the 13-dataset PK and the historical 35-panel Decision Index.
+- The full Decision Index run covers only the public 37-benchmark scoreable text panel, not the private Full leaderboard, and is not mixed with the historical 35-benchmark sample. JEV-27B-VL has no full-panel result, so no full-panel comparison is claimed.
 - The sealed PK's rule tasks are fresh instances of the rule families used in v0.3.0 training, and its public-gold tasks come
   from four sources seen in training (different items). Those leads show in-distribution learning, not generalisation to
   unseen rules or sources; transfer-v4, the 13-dataset PK and Decision Index are the out-of-distribution checks.
@@ -235,15 +236,18 @@ Paired task-macro difference (group-bootstrap 95% interval):
 - **Where the gain comes from**: about nine tenths of the 4B gain is the rule tasks; the 27B gain is more even, with public gold
   +7.2pp and a significant legacy gain. In controls, continuing training without new data (D0) gave 0 and GSM8K alone was not
   significant, so the gain comes from the public-gold + rule data, not extra steps.
-- **Out-of-distribution checks**: 4B Decision Index 37-panel full run 37.40 → 39.01 (paired question-level +0.97pp [0.78, 1.17],
-  25 up / 10 down, three benchmarks including #38 significantly down); transfer-v4 accuracy 4B 0.779 → 0.805 and 27B
+- **Out-of-distribution checks**: Decision Index 37-panel full run 4B 37.40 → 39.01 (paired question-level +0.97pp [0.78, 1.17],
+  25 up / 10 down, three benchmarks including #38 significantly down) and 27B 53.88 → 55.58 (paired question-level macro-accuracy diagnostic +1.03pp [0.86, 1.20], 30 up / 6 down / 1 equal,
+  all five areas up); transfer-v4 accuracy 4B 0.779 → 0.805 and 27B
   0.851 → 0.858, ECE lower for both; 13-dataset PK flat for 4B (24 / 30 discordant, p=0.50) and 0.678 → 0.687 for 27B
   (25 / 13, p=0.073). Out-of-distribution gains are much smaller than on the sealed PK.
 - **Limits**: rule items share families with training, public-gold sources appear in training (different items), one seed per
   size. Every model runs its own native stack with shipped temperatures; external models were not retrained or recalibrated.
   Latencies are from the same H20 but different stacks.
+  Question-level accuracy intervals are diagnostics, not confidence intervals for the DI index. Per-benchmark McNemar tests are not corrected for multiple comparisons; not every task improves.
 - Details: [reports/v0.3.0/external_final2.json](reports/v0.3.0/external_final2.json) (six models, per task),
   [reports/v0.3.0/final_pk.json](reports/v0.3.0/final_pk.json) (4B release acceptance),
+  [reports/v0.3.0/di37_results.json](reports/v0.3.0/di37_results.json) (full DI results and audit),
   [docs/results.en.md §13](docs/results.en.md#13-v030-continued-training-with-gold-and-rule-data).
 
 ## Documentation

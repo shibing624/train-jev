@@ -425,7 +425,7 @@ jev-distill teacher, so they are not used for KL.
 | transfer-v4 ECE ↓ | 0.075 | 0.054 | 0.053 | 0.032 |
 | transfer-v4 NLL ↓ | 0.745 | 0.596 | 0.411 | 0.377 |
 | Decision Index 35-benchmark sample ↑ | 40.35 | 41.49 | 54.57 | 56.15 |
-| Decision Index 37-benchmark full ↑ | 37.40 | 39.01 | 53.88 | ⏳ |
+| Decision Index 37-benchmark full ↑ | 37.40 | 39.01 | 53.88 | 55.58 |
 | Vision mean skill ↑ | 0.697 | 0.693 | 0.760 | 0.765 |
 | PK p50 latency | 43.5 ms | 44.9 ms | 81.9 ms | 84.5 ms |
 
@@ -435,6 +435,16 @@ jev-distill teacher, so they are not used for KL.
   (tools +3.0, retrieval +2.1, language +1.5, arts +0.9, knowledge +0.7 skill points); 25 benchmarks up / 10 down / 2 equal,
   McNemar-significant 17 up / 3 down; #38 skill 8.0 → 5.8, #44 −2.3 and #37 −1.5 significantly down. The panel only has
   choice / noul questions; re-tempering to the v0.2.0 temperatures changes 0 answers.
+- 27B Decision Index 37 full: all 110,087 requests / 272,229 answer fields ok, coverage=1.0, raw 65.08 → 66.42; paired macro-accuracy diagnostic on 234,641 usable gold fields +1.03pp [0.86, 1.20],
+  uncorrected McNemar p<0.05: 17 up / 2 down; all five areas up (knowledge +2.2, tools +2.1, retrieval +1.7, language +1.3, arts +0.6
+  skill points); 30 benchmarks up / 6 down / 1 equal, largest drops #21 −1.6 and #32 −1.1. To save time it ran as three disjoint
+  row segments on 3 H20s (same frozen source and checkpoint); 40 rows re-run on one GPU after the merge gave bit-identical answers.
+  Request wall span was 7.76 h; end-to-end loading/resuming/merging/auditing/scoring took 7.93 h. These are three-GPU parallel timings, not a single-GPU inference speedup. Re-tempering to v0.2.0 changes 0 answers and gives zero skill difference on all 37 benchmarks.
+  ChessBench raw accuracy falls 16.96% → 16.16%; HLE falls 7.39% → 5.99% (501 text questions, p=0.189, not a significant decline). HLE skill is clipped to zero in both versions below chance=16.41%.
+  ACOS target per-review F1 / DI skill improves while the field-level accuracy diagnostic falls about 0.14pp; the two uncorrected significant diagnostic declines do not mean that HLE or ACOS target F1 declined significantly.
+- Question-level diagnostic intervals are not DI-index confidence intervals; McNemar tests are not corrected for multiple comparisons. All areas improving does not mean all tasks improve.
+  The full run still covers only the public 37-benchmark scoreable text panel, not private Full or full multimodal HLE. JEV-27B-VL has only the historical 6,000-question result, no full-panel pairing.
+  Scores, per-benchmark skill, protocol, input hashes and merge audit: [di37_results.json](../reports/v0.3.0/di37_results.json).
 - The OOD KL increase is the expected cost of gold supervision moving away from the Jev teacher: accuracy does not drop, and
   refitting temperatures on the jev-distill calibration split gives 0.472 / 0.121 (4B / 27B), close to the raw values.
 - Conclusion: the v0.3.0 recipe gives small, consistent out-of-distribution gains (transfer-v4, Decision Index, calibration),
