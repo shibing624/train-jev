@@ -319,24 +319,121 @@ Qwen3.8-27B notes:
 
 ## 11. The v0.3.0 continued-training recipe
 
-v0.3.0 does not train from scratch: it continues the v0.2.0 LoRA + head (`--init_adapter`, fresh optimizer) and replaces a
-fixed `--mix_fraction` of every step with new supervision, the rest being jev-distill replay. 4B and 27B differ only in the
-backbone, starting point and memory settings:
+The released models continue their respective v0.2.0 **LoRA + decision head** (`--init_adapter`, fresh optimizer), rather than training from scratch.
+Both sizes use the same 692,953-row pool: 655,806 distillation-replay rows + 37,147 new supervised rows.
+
+> This guide requires a separate training-data handoff. Processed data, generators, development and calibration sets are not distributed with GitHub or the HF model packages. Do not upload raw training data into model repositories.
+
+### 11.1 Minimum data bundle and hashes
+
+Preserve this relative layout when copying data; `$D` below points to the handed-off `v030_20261017/` directory.
+
+| File | Rows | Purpose | SHA256 |
+|---|---:|---|---|
+| `base/train.jsonl` | 655,806 | Original distillation replay | `71e3ac5080e7da7d80d0dc867e3b4ac0307e1c3eb2c0843d578417f8510af9d6` |
+| `math/train.jsonl` | 11,148 | 5,574 GSM8K questions, each with near / broad distractor views | `f693a4cac3be41402c7a3d768db8578f1859af6394716539e923aac2fa35ed77` |
+| `public_curated_train.jsonl` | 15,999 | PAWS 4,000, AQuA 3,999, QASC 4,000, HelpSteer2 4,000 | `8d44ca70d2acbf63e7cf66b4883fd9ef83485602f4dd2008834fe12c1279dcc2` |
+| `rules/train.jsonl` | 10,000 | Six independently verified rule families | `f380ff3133f46bcdc378b016148b1df43cb0d6b116f5fb1409194f479c29df06` |
+| `base/validation.jsonl` | 2,824 | New-task training validation; no gradient updates | `e8950a5019eade64a073646ddba72c07644c379d25ff9feee7bbbae5a7c24523` |
+
+The minimum bundle is about 473 MiB, plus both v0.2.0 LoRA + head starting points, current training code and the release's `training_recipe.json`.
+The original `base/train.jsonl` is an absolute symlink: copy the actual file with `cp -L` / `rsync -L` to avoid a broken link.
+**Do not replace `base/validation.jsonl` with the original jev-distill validation**: the trainer samples 2,500 of these new-task rows with fixed seed=1.
+
+### 11.2 Sources and construction
+
+Exact reconstruction requires pinned upstream versions, not a fresh random split of floating main.
+
+| Source | Fixed revision | Use |
+|---|---|---|
+| `SargeDev/jev-distill-corpus-v3` | `75111a13a8455032f0435050bfc7e0c9026ecfe8` | Replay `train.jsonl`; verify its hash above |
+| `openai/gsm8k` | `740312add88f781978c0658806c59bc2815b9866` | Near / broad four-choice views of the same questions |
+| `google-research-datasets/paws` | `161ece9501cf0a11f3e48bd356eaa82de46d6a09` | Paraphrase `noul` |
+| `deepmind/aqua_rat` | `33301c6a050c96af81f63cad5562cb5363e88971` | Native mathematics multiple choice |
+| `allenai/qasc` | `a34ba204eb9a33b919c10cc08f4f1c8dae5ec070` | Native science multiple choice |
+| `nvidia/HelpSteer2` | `990b2711a36180dd19d9c94b8627844866f8982a` | Correctness 0–4 converted to five-option `choice`, not `score` |
+
+- Public sources use upstream train splits only; seed=20261017 and connected-group hashing define the 85/5/5/5% split. Deduplicate and exclude old-input overlap first, then split whole groups, not individual rows.
+- `public/train.jsonl` originally has 16,000 rows. Combination building quarantines one AQuA group, so train on **the 15,999-row `public_curated_train.jsonl`**, not the unfiltered file.
+- GSM8K arithmetic, ambiguity and overlap checks retain 5,574 training questions. Near / broad views are interleaved in their original order; they are not 11,148 independent questions. Inputs do not include reference solutions or correct labels.
+- Rule counts are routing 1,630, explicit evidence 1,682, coreference 1,646, refund conversion 1,676, calendars 1,676 and condition counting 1,690. Counterfactual pairs are group-isolated and checked by two independent state-only oracles; traces remain side evidence.
+- SNLI is not in the new pool; there is no new memory-write-specific data. Retain QASC / HelpSteer2 CC-BY-4.0 attribution and PAWS's upstream permissive terms.
+
+The complete construction chain and raw assets require a separate handoff: `gold_pilot_20261016/` (`build_data.py`, `robust_eval.py`),
+`gold_balanced_20261016/` (`build_balanced.py`), and `$D`'s `public/builder.py`, `rules/build_rules.py`,
+`build_combinations.py`, `build_suite.py`, raw files, locks, manifests, licensing and audit evidence.
+Rebuilding the original GSM8K pilot also requires the historical DI requests used for overlap exclusion; new DI37 requests are not a substitute.
+
+Core generator fingerprints before path porting:
+
+| File (relative to `$D`) | SHA256 |
+|---|---|
+| `build_combinations.py` | `695e1ba75fec960560f40d83df767e2d83380bc7a9bef756bf77a6ec57ac84b6` |
+| `public/builder.py` | `014ceb9063f30414a70573aad6df74b0475ed07b06b2a64382cced994a18d53f` |
+| `rules/build_rules.py` | `d2751732e09f9115643e3bf98eec195e7166a78751211fe331f34aefb26784e6` |
+
+Generators are not in this repository. Port absolute paths and rebuild only in a new copy, never over sealed data.
+Path changes alter code hashes, but processed JSONL must match the hashes above. If construction inputs are missing, use handed-off hash-matching processed files instead of claiming exact reconstruction from raw sources.
+
+### 11.3 Actual sampling
+
+Each global batch has 128 rows with fixed counts `choice:64,noul:32,score:32`.
+Sixteen positions eligible for new data are replaced with same-kind samples; 112 remain original replay. Each of the three new files is included once, and sampling is within kind, not an equal allocation across sources.
+Replacements retain the old position's loss weight. The final fraction is **0.125**, not the early experiment's 0.25.
+
+Use seed=17, option-permutation probability 0.3, placeholder weight 0.05, KL + 0.5×RPS and Brier coefficient 0.
+This is step sampling, not epoch traversal. By step 512 there are 65,536 draws (57,344 replay and 8,192 new), not that many unique examples.
+Sampling depends on file order and permutation also depends on rank; both original runs use three GPUs, so changing world size changes the trajectory.
+
+### 11.4 Commands for both sizes
 
 ```bash
-# 27B (3×H20; for 4B use --base Qwen/Qwen3.5-4B, the 4B v0.2.0 start, plus --no_gc --micro_tokens 4096)
-torchrun --nproc_per_node 3 -m trainjev.train \
-  --base Qwen/Qwen3.8-27B --data data/jev-distill-corpus-v3 \
-  --init_adapter releases/train-jev-27b-lora-v0.2.0 \
-  --mix data/v030/math.jsonl,data/v030/public_curated.jsonl,data/v030/rules.jsonl --mix_fraction 0.125 \
-  --kind_counts choice:64,noul:32,score:32 --batch 128 --micro_tokens 16384 \
-  --lr 2e-5 --head_lr 4e-5 --steps 2048 --max_steps 1024 --seed 17 \
-  --eval_every 256 --val_n 2500 --save_state_every 128 --out runs/jev-27b-v030
+# Run inside the repository; set D to the data handoff and use new output directories
+D=/path/to/v030_20261017
+REL=releases/v0.2.0
+hf download shibing624/train-jev-4b-lora --revision v0.2.0 --local-dir "$REL/train-jev-4b-lora"
+hf download shibing624/train-jev-27b-lora --revision v0.2.0 --local-dir "$REL/train-jev-27b-lora"
+export OMP_NUM_THREADS=2 TOKENIZERS_PARALLELISM=false
+
+# 4B
+CUDA_VISIBLE_DEVICES=0,1,2 torchrun --standalone --nproc_per_node=3 -m trainjev.train \
+  --base Qwen/Qwen3.5-4B --data "$D/base" \
+  --init_adapter "$REL/train-jev-4b-lora" \
+  --mix "$D/math/train.jsonl,$D/public_curated_train.jsonl,$D/rules/train.jsonl" --mix_fraction 0.125 \
+  --out runs/jev-4b-v030 --steps 2048 --batch 128 --micro_tokens 4096 --max_len 2048 \
+  --kind_counts choice:64,noul:32,score:32 --lora_r 16 --lr 2e-5 --head_lr 4e-5 \
+  --seed 17 --eval_every 256 --val_n 2500 --save_state_every 256 --no_gc \
+  --rps_w 0.5 --brier_w 0 --perm 0.3 --placeholder_w 0.05
+
+# 27B; run after 4B rather than competing for the same three GPUs
+CUDA_VISIBLE_DEVICES=0,1,2 torchrun --standalone --nproc_per_node=3 -m trainjev.train \
+  --base Qwen/Qwen3.8-27B --data "$D/base" \
+  --init_adapter "$REL/train-jev-27b-lora" \
+  --mix "$D/math/train.jsonl,$D/public_curated_train.jsonl,$D/rules/train.jsonl" --mix_fraction 0.125 \
+  --out runs/jev-27b-v030 --steps 2048 --max_steps 1024 --batch 128 --micro_tokens 16384 --max_len 2048 \
+  --kind_counts choice:64,noul:32,score:32 --lora_r 16 --lr 2e-5 --head_lr 4e-5 \
+  --seed 17 --eval_every 256 --val_n 2500 --save_state_every 128 \
+  --rps_w 0.5 --brier_w 0 --perm 0.3 --placeholder_w 0.05
 ```
 
-`--init_adapter` takes a local directory: first `huggingface-cli download shibing624/train-jev-27b-lora --revision v0.2.0 --local-dir releases/train-jev-27b-lora-v0.2.0`. Sources,
-revisions and counts of the new supervision (GSM8K distractor views, PAWS, AQuA-RAT, QASC, HelpSteer2, CC0 rules) are recorded
-in the release's `training_recipe.json`; this repository does not ship the data files. Checkpoints are chosen only on a
-development set disjoint from the final evaluation; temperatures are fitted on a separate gold calibration set.
-Measured: 4B on 3×H20, 2,048 steps in 1.3 h; 27B on 3×H20 with gradient checkpointing, about 27.6 s/step, 1,024 steps in
-7.9 h, 74.9 GB peak per GPU.
+Both releases use **`step00512/`**, not the final step or the trainer's lowest-validation-KL `best/`.
+To reproduce only that selected point, use `--steps 2048 --max_steps 512` for either model; **do not use `--steps 512`**, which changes the learning-rate schedule.
+Measured complete runs: 4B on three H20s, 2,048 steps in 1.3 h; 27B on three H20s with gradient checkpointing, 1,024 steps in 7.9 h.
+
+### 11.5 Development, calibration and final evaluation isolation
+
+| Role | Additional data required | Count |
+|---|---|---:|
+| Training validation | `base/validation.jsonl` | 2,824 rows; fixed 2,500-row sample |
+| Release-point selection | `suite.json` dev, `audited/dev_*.jsonl` | 3,550, including 13 auxiliary fidelity items |
+| Independent temperature fitting | `suite.json` calibration, `audited/calibration_*.jsonl` | 2,468 |
+| Sealed PK | `suite_final2.json`, `reserve2/` | 2,494 gold requests |
+| External DI37 | Frozen public text requests | 110,087; final evaluation only |
+
+The calibration set contains public 794, rules 800, GSM8K 512 and legacy 362 rows; original distillation calibration and final2 are not substitutes.
+Full reproduction also requires `evaluate_campaign.py`, suite files and selection records. Port paths in a new copy without changing questions, labels or row order.
+The original criterion is highest development task-macro gain with no >16-option regression; both sizes select step 512. Do not reselect using known final2 or DI scores.
+Fit temperatures only on independent calibration and write them into newly trained checkpoints, not published model packages.
+
+See [requirements-tested.txt](../requirements-tested.txt) for the reference environment; data construction additionally uses pyarrow 26.0.0 and tokenizers 0.23.3.
+Matching data, recipe and seed does not guarantee bitwise equality across hardware or kernels. Recheck raw-versus-packaged probabilities and manifests after training; identical weight hashes cannot be promised in advance.

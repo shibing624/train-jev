@@ -291,21 +291,121 @@ Qwen3.8-27B 说明：
 
 ## 11. v0.3.0 续训配方
 
-v0.3.0 不从头训练，而是在 v0.2.0 的 LoRA + 决策头上续训（`--init_adapter`，优化器重置），每步按 `--mix_fraction` 定额替换成新监督数据，
-其余仍是 jev-distill 回放。4B 与 27B 只有底座、起点和显存设置不同：
+发布模型不从头训练，而是在各自 v0.2.0 的 **LoRA + 决策头**上续训（`--init_adapter`，优化器重置）。
+两尺寸使用相同的 692,953 行训练池：655,806 行旧蒸馏回放 + 37,147 行新监督。
+
+> 本节是收到训练数据后的复刻指南，不是仅下载 HF 模型包即可执行的流程。加工后的数据、生成器、开发集和校准集未随 GitHub 或 HF 模型包公开；需要另外取得它们。不要把原始数据上传到模型仓库。
+
+### 11.1 最小数据集合与哈希
+
+复制数据时保留以下相对结构；下文 `$D` 指向移交的 `v030_20261017/` 目录。
+
+| 文件 | 行数 | 用途 | SHA256 |
+|---|---:|---|---|
+| `base/train.jsonl` | 655,806 | 旧蒸馏回放 | `71e3ac5080e7da7d80d0dc867e3b4ac0307e1c3eb2c0843d578417f8510af9d6` |
+| `math/train.jsonl` | 11,148 | 5,574 道 GSM8K，每题 near / broad 两个干扰项视图 | `f693a4cac3be41402c7a3d768db8578f1859af6394716539e923aac2fa35ed77` |
+| `public_curated_train.jsonl` | 15,999 | PAWS 4,000、AQuA 3,999、QASC 4,000、HelpSteer2 4,000 | `8d44ca70d2acbf63e7cf66b4883fd9ef83485602f4dd2008834fe12c1279dcc2` |
+| `rules/train.jsonl` | 10,000 | 六类独立校验的规则样本 | `f380ff3133f46bcdc378b016148b1df43cb0d6b116f5fb1409194f479c29df06` |
+| `base/validation.jsonl` | 2,824 | 新任务训练内验证，不参与梯度更新 | `e8950a5019eade64a073646ddba72c07644c379d25ff9feee7bbbae5a7c24523` |
+
+最小集合约 473 MiB，另需两个 v0.2.0 LoRA + head 起点、当前训练代码及发布包的 `training_recipe.json`。
+原 `base/train.jsonl` 是绝对路径软链接，移交时用 `cp -L` / `rsync -L` 复制实体，避免断链。
+**不要用原 jev-distill 的 validation 替换这里的 `base/validation.jsonl`**：训练器以 seed=1 固定抽取其中 2,500 行做验证。
+
+### 11.2 来源与构建方法
+
+精确重建需要固定上游版本，不应下载浮动 main 后重新随机划分。
+
+| 来源 | 固定 revision | 用法 |
+|---|---|---|
+| `SargeDev/jev-distill-corpus-v3` | `75111a13a8455032f0435050bfc7e0c9026ecfe8` | 旧蒸馏 `train.jsonl`，核对上表哈希 |
+| `openai/gsm8k` | `740312add88f781978c0658806c59bc2815b9866` | 同一批原题构建 near / broad 四选一视图 |
+| `google-research-datasets/paws` | `161ece9501cf0a11f3e48bd356eaa82de46d6a09` | 释义判断，`noul` |
+| `deepmind/aqua_rat` | `33301c6a050c96af81f63cad5562cb5363e88971` | 原生数学选择题 |
+| `allenai/qasc` | `a34ba204eb9a33b919c10cc08f4f1c8dae5ec070` | 原生科学选择题 |
+| `nvidia/HelpSteer2` | `990b2711a36180dd19d9c94b8627844866f8982a` | correctness 0–4 转为五选一 `choice`，不是 `score` |
+
+- 公共来源只用上游 train split；seed=20261017，按连通 group 哈希分为 85/5/5/5%。先去重并排除旧输入重叠，再整组划分，不能逐行随机 split。
+- `public/train.jsonl` 原有 16,000 行；组合构建时隔离了一个 AQuA group，实际训练必须用 **`public_curated_train.jsonl` 的 15,999 行**。
+- GSM8K 经算术一致性、歧义和输入重叠筛选后保留 5,574 道训练原题；near / broad 按原顺序交错，不是 11,148 道独立原题。输入不附参考解析或正确标签。
+- 六类规则为路由 1,630、显式证据 1,682、指代 1,646、退款换算 1,676、日历 1,676、条件计数 1,690 行。反事实对按 group 隔离，两个独立 state-only oracle 校验；trace 只作旁路证据。
+- SNLI 未用于新增训练池；没有新增 memory-write 专项数据。QASC / HelpSteer2 保留 CC-BY-4.0 署名，PAWS 遵循其上游宽松许可。
+
+完整构建链及原始资产需另外移交：`gold_pilot_20261016/`（`build_data.py`、`robust_eval.py`）、
+`gold_balanced_20261016/`（`build_balanced.py`），以及 `$D` 中的 `public/builder.py`、`rules/build_rules.py`、
+`build_combinations.py`、`build_suite.py`、raw、lock、manifest、许可与审计证据。
+从原始 GSM8K 重建还需当时用于重叠排除的历史 DI 请求文件，不能用新版 DI37 请求替代。
+
+移植前的核心生成器指纹：
+
+| 文件（相对 `$D`） | SHA256 |
+|---|---|
+| `build_combinations.py` | `695e1ba75fec960560f40d83df767e2d83380bc7a9bef756bf77a6ec57ac84b6` |
+| `public/builder.py` | `014ceb9063f30414a70573aad6df74b0475ed07b06b2a64382cced994a18d53f` |
+| `rules/build_rules.py` | `d2751732e09f9115643e3bf98eec195e7166a78751211fe331f34aefb26784e6` |
+
+生成器不在本仓库。只在新副本中修改绝对路径并重建，不覆盖封存数据；路径移植会改变代码哈希，但处理后 JSONL 必须与上表一致。
+若缺少构建输入，优先使用已移交、哈希匹配的处理后文件，不宣称从原始来源精确重建。
+
+### 11.3 实际采样
+
+每步 global batch=128，题型固定为 `choice:64,noul:32,score:32`。
+从有新增数据的题型中选 16 个位置做同题型替换，剩下 112 行为旧回放；新池三个文件各复制一次，题型内按池采样，不把来源均分。
+替换保留原位置的损失权重。最终比例为 **0.125**，不是早期实验的 0.25。
+
+seed=17，选项置换概率 0.3，placeholder 权重 0.05，损失 KL + 0.5×RPS，Brier 系数 0。
+这不是按 epoch 遍历；到第 512 步共抽样 65,536 次（旧回放 57,344、新监督 8,192），不是唯一训练样本数。
+抽样依赖文件顺序，选项置换还依赖 rank；原训练均为三卡，换 world size 不能保证相同训练轨迹。
+
+### 11.4 两尺寸启动命令
 
 ```bash
-# 27B（3×H20；4B 换 --base Qwen/Qwen3.5-4B、起点换 4B v0.2.0，并加 --no_gc --micro_tokens 4096）
-torchrun --nproc_per_node 3 -m trainjev.train \
-  --base Qwen/Qwen3.8-27B --data data/jev-distill-corpus-v3 \
-  --init_adapter releases/train-jev-27b-lora-v0.2.0 \
-  --mix data/v030/math.jsonl,data/v030/public_curated.jsonl,data/v030/rules.jsonl --mix_fraction 0.125 \
-  --kind_counts choice:64,noul:32,score:32 --batch 128 --micro_tokens 16384 \
-  --lr 2e-5 --head_lr 4e-5 --steps 2048 --max_steps 1024 --seed 17 \
-  --eval_every 256 --val_n 2500 --save_state_every 128 --out runs/jev-27b-v030
+# 在仓库内执行；D 换成移交数据的真实目录，输出目录必须是新的
+D=/path/to/v030_20261017
+REL=releases/v0.2.0
+hf download shibing624/train-jev-4b-lora --revision v0.2.0 --local-dir "$REL/train-jev-4b-lora"
+hf download shibing624/train-jev-27b-lora --revision v0.2.0 --local-dir "$REL/train-jev-27b-lora"
+export OMP_NUM_THREADS=2 TOKENIZERS_PARALLELISM=false
+
+# 4B
+CUDA_VISIBLE_DEVICES=0,1,2 torchrun --standalone --nproc_per_node=3 -m trainjev.train \
+  --base Qwen/Qwen3.5-4B --data "$D/base" \
+  --init_adapter "$REL/train-jev-4b-lora" \
+  --mix "$D/math/train.jsonl,$D/public_curated_train.jsonl,$D/rules/train.jsonl" --mix_fraction 0.125 \
+  --out runs/jev-4b-v030 --steps 2048 --batch 128 --micro_tokens 4096 --max_len 2048 \
+  --kind_counts choice:64,noul:32,score:32 --lora_r 16 --lr 2e-5 --head_lr 4e-5 \
+  --seed 17 --eval_every 256 --val_n 2500 --save_state_every 256 --no_gc \
+  --rps_w 0.5 --brier_w 0 --perm 0.3 --placeholder_w 0.05
+
+# 27B，与上面的 4B 顺序运行，避免争用同三张卡
+CUDA_VISIBLE_DEVICES=0,1,2 torchrun --standalone --nproc_per_node=3 -m trainjev.train \
+  --base Qwen/Qwen3.8-27B --data "$D/base" \
+  --init_adapter "$REL/train-jev-27b-lora" \
+  --mix "$D/math/train.jsonl,$D/public_curated_train.jsonl,$D/rules/train.jsonl" --mix_fraction 0.125 \
+  --out runs/jev-27b-v030 --steps 2048 --max_steps 1024 --batch 128 --micro_tokens 16384 --max_len 2048 \
+  --kind_counts choice:64,noul:32,score:32 --lora_r 16 --lr 2e-5 --head_lr 4e-5 \
+  --seed 17 --eval_every 256 --val_n 2500 --save_state_every 128 \
+  --rps_w 0.5 --brier_w 0 --perm 0.3 --placeholder_w 0.05
 ```
 
-`--init_adapter` 接本地目录：先 `huggingface-cli download shibing624/train-jev-27b-lora --revision v0.2.0 --local-dir releases/train-jev-27b-lora-v0.2.0`。
-新监督数据（GSM8K 双干扰项、PAWS、AQuA-RAT、QASC、HelpSteer2、CC0 规则）的来源 revision 与数量记录在发布包的 `training_recipe.json`，
-本仓库不分发数据文件。checkpoint 只在与最终评测不重合的开发集上挑选；温度在独立的金标校准集上拟合。
-实测：4B 3×H20 2,048 步 1.3 h；27B 3×H20（gradient checkpointing）约 27.6 s/step，1,024 步 7.9 h，单卡峰值 74.9 GB。
+两者发布点都是 **`step00512/`**，不是最后一步或训练器按最低验证 KL 保存的 `best/`。
+只复刻已选点时，两者均可用 `--steps 2048 --max_steps 512`；**不能改成 `--steps 512`**，否则学习率曲线会变化。
+完整训练实测：4B 三张 H20，2,048 步 1.3 h；27B 三张 H20，开启 gradient checkpointing，1,024 步 7.9 h。
+
+### 11.5 开发集、校准与最终评测隔离
+
+| 用途 | 另外需要的数据 | 数量 |
+|---|---|---:|
+| 训练内验证 | `base/validation.jsonl` | 2,824 行，固定抽取 2,500 |
+| 发布点选择 | `suite.json` 的 `dev`、`audited/dev_*.jsonl` | 3,550，含 13 条辅助保真题 |
+| 独立温度校准 | `suite.json` 的 `calibration`、`audited/calibration_*.jsonl` | 2,468 |
+| 封存 PK | `suite_final2.json`、`reserve2/` | 2,494 金标题 |
+| 外部 DI37 | 冻结的公开文本请求 | 110,087，只用于最后评测 |
+
+校准集由 public 794、rules 800、GSM8K 512、legacy 362 行组成，不能用旧蒸馏 calibration 或 final2 代替。
+完整复现还需移交 `evaluate_campaign.py`、suite 文件和选点记录；它们的路径在新副本中替换，题目、标签和行顺序不变。
+原准则是开发集宏平均增益最高且 >16 选项视图不退步，两尺寸都选中第 512 步；不得用已知 final2 或 DI 成绩重新挑点。
+温度只在独立 calibration 上拟合，写入新训练 checkpoint，不修改已发布模型包。
+
+参考软件环境见 [requirements-tested.txt](../requirements-tested.txt)；数据构建另用 pyarrow 26.0.0、tokenizers 0.23.3。
+数据、配方和种子一致不等于跨硬件或 kernel 逐位一致；重训后仍需检查打包前后概率和 manifest，不能提前保证权重 SHA 相同。
