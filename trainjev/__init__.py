@@ -4,7 +4,7 @@
 @description: 在 Qwen3.5 上训练 JEV 风格的 System 1 决策模型（LoRA + 24 槽位决策头）。
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from trainjev.data import LABELS, encode, is_placeholder, load_rows, micro_batches, prompt
 from trainjev.losses import kl_rps

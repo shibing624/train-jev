@@ -17,7 +17,7 @@ CKPT=runs/jev-4b/best PORT=8020 bash scripts/run_serve.sh
 |---|---|---|
 | `--base` | `Qwen/Qwen3.5-4B` | 底座：HF id 或本地目录 |
 | `--adapter` | – | HF repo id 或本地 checkpoint 目录（LoRA + `head.pt` + `calibration.json`） |
-| `--adapter_revision` | – | adapter 的 HF tag 或 commit，例如 `v0.2.0` |
+| `--adapter_revision` | – | adapter 的 HF tag 或 commit，例如 `v0.3.0`；旧版用 `v0.2.0` |
 | `--strategy` | `single` | 超过 16 个选项的选择题怎么读（见下文） |
 | `--device` | `cuda` | `cpu` 表示在 CPU 上用 fp32 推理（很慢，只适合核对） |
 | `--host` / `--port` | `127.0.0.1` / `8020` | 监听地址 |

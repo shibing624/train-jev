@@ -36,6 +36,7 @@ import math
 import os
 import random
 import time
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
 import torch
@@ -44,7 +45,15 @@ import torch.distributed as dist
 from trainjev.data import encode_many, is_placeholder, load_rows, micro_batches
 from trainjev.losses import kl_rps_batch, pack_targets
 from trainjev.metrics import metrics
-from trainjev.modeling import LORA_TARGETS, RANGES, VERBALIZER_IDS, DecisionHead, check_verbalizers, last_hidden
+from trainjev.modeling import (
+    LORA_TARGETS,
+    RANGES,
+    VERBALIZER_IDS,
+    DecisionHead,
+    check_verbalizers,
+    last_hidden,
+    load_trained,
+)
 from trainjev.resume import load_state, require_state, save_state
 
 
@@ -53,6 +62,10 @@ def parse_args(argv=None):
     ap.add_argument("--base", default="Qwen/Qwen3.5-4B", help="HF id or local path of the Qwen3.5 backbone")
     ap.add_argument("--data", default="data/jev-distill-corpus-v3", help="dir with train.jsonl / validation.jsonl")
     ap.add_argument("--mix", default="", help="comma-separated extra training jsonl files, each optionally path:N")
+    ap.add_argument("--mix_fraction", type=float, default=None,
+                    help="exact fraction of rows replaced by same-kind --mix rows; default retains concatenation")
+    ap.add_argument("--kind_counts", default="", help="fixed global kind counts, e.g. choice:64,noul:32,score:32")
+    ap.add_argument("--init_adapter", default="", help="continue a LoRA + head checkpoint with a fresh optimizer")
     ap.add_argument("--out", required=True)
     ap.add_argument("--steps", type=int, default=0, help="0 = one epoch at --batch rows/step")
     ap.add_argument("--max_steps", type=int, default=0, help="stop early (smoke tests); schedule still uses --steps")
@@ -63,6 +76,7 @@ def parse_args(argv=None):
     ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--head_lr", type=float, default=2e-4)
     ap.add_argument("--rps_w", type=float, default=0.5)
+    ap.add_argument("--brier_w", type=float, default=0.0, help="optional per-row Brier loss coefficient (LoRA only)")
     ap.add_argument("--perm", type=float, default=0.3, help="probability of shuffling a choice row's options")
     ap.add_argument("--placeholder_w", type=float, default=0.05, help="loss weight of placeholder rows (0 drops them)")
     ap.add_argument("--eval_every", type=int, default=500)
@@ -91,27 +105,61 @@ def setup_data(a, log):
             out.append(dict(r, weight=w))
         return out
 
-    train = prep(load_rows(f"{a.data}/train.jsonl"))
+    train = [dict(r, _mixed=False) for r in prep(load_rows(f"{a.data}/train.jsonl"))]
     log(f"jev-distill train rows kept: {len(train)}")
+    base_n = len(train)
+    mix_fraction = getattr(a, "mix_fraction", None)
+    if mix_fraction is not None and not 0 <= mix_fraction <= 1:
+        raise ValueError("--mix_fraction must lie in [0, 1]")
     for spec in [p for p in a.mix.split(",") if p]:
         p, rep = spec.rsplit(":", 1) if spec.rsplit(":", 1)[-1].isdigit() else (spec, "1")
         extra = prep(load_rows(p)) * int(rep)
+        extra = [dict(r, _mixed=True) for r in extra]
         log(f"mix: +{len(extra)} rows from {p} (x{rep})")
         train += extra
     val = load_rows(f"{a.data}/validation.jsonl", a.val_n, seed=1)
-    steps = a.steps or len(train) // a.batch
+    steps = a.steps or (base_n if mix_fraction is not None else len(train)) // a.batch
 
     by_kind = {}
-    for i, r in enumerate(train):
+    sample_n = base_n if mix_fraction is not None else len(train)
+    for i, r in enumerate(train[:sample_n]):
         by_kind.setdefault(r["kind"], []).append(i)
+    mix_by_kind = {}
+    if mix_fraction is not None:
+        for i in range(base_n, len(train)):
+            mix_by_kind.setdefault(train[i]["kind"], []).append(i)
+        if mix_fraction > 0 and not mix_by_kind:
+            raise ValueError("A nonzero --mix_fraction requires nonempty --mix data")
+    fixed_counts = {}
+    for spec in getattr(a, "kind_counts", "").split(","):
+        if spec:
+            kind, count = spec.split(":")
+            if kind in fixed_counts or kind not in by_kind or int(count) < 0:
+                raise ValueError("Invalid or duplicated --kind_counts entry")
+            fixed_counts[kind] = int(count)
+    if fixed_counts and sum(fixed_counts.values()) != a.batch:
+        raise ValueError("--kind_counts must sum to --batch")
 
     def step_rows(step):
         """Kind-stratified (>= 1/6 of the batch per kind) sample for one global step, identical on every rank."""
         rng = random.Random(a.seed * 1_000_003 + step)
-        floor = a.batch // 6
-        idx = [i for k in by_kind for i in rng.sample(by_kind[k], floor)]
-        idx += rng.sample(range(len(train)), a.batch - len(idx))
-        return [train[i] for i in idx]
+        if fixed_counts:
+            idx = [i for k, count in fixed_counts.items() for i in rng.sample(by_kind[k], count)]
+        else:
+            floor = a.batch // 6
+            idx = [i for k in by_kind for i in rng.sample(by_kind[k], floor)]
+            idx += rng.sample(range(sample_n), a.batch - len(idx))
+        rows = [train[i] for i in idx]
+        if mix_fraction:
+            mrng = random.Random(a.seed * 1_000_003 + step + 97_531)
+            eligible = [i for i, r in enumerate(rows) if r["kind"] in mix_by_kind]
+            count = round(a.batch * mix_fraction)
+            if count > len(eligible):
+                raise ValueError("Requested mix fraction exceeds same-kind replacement capacity")
+            for i in mrng.sample(eligible, count):
+                replacement = train[mrng.choice(mix_by_kind[rows[i]["kind"]])]
+                rows[i] = dict(replacement, weight=rows[i]["weight"])
+        return rows
 
     def augment(r, rng):
         if r["kind"] != "choice" or rng.random() >= a.perm:
@@ -155,10 +203,10 @@ def step_batches(a, tok, step_rows, augment, rank, world, start, stop):
             yield s, rows, ids
 
 
-def micro_loss(head, h, rows, rps_w):
+def micro_loss(head, h, rows, rps_w, brier_w=0.0):
     """Weighted sum of the per-row KL (+ RPS) over a micro-batch, as a tensor (no host sync)."""
     lo, n, tgt, sc, w = (x.to(h.device, non_blocking=True) for x in pack_targets(rows))
-    return (kl_rps_batch(head.slot_logits(h), lo, n, tgt, sc, rps_w) * w).sum()
+    return (kl_rps_batch(head.slot_logits(h), lo, n, tgt, sc, rps_w, brier_w) * w).sum()
 
 
 @torch.no_grad()
@@ -174,9 +222,13 @@ def head_probs(head, h, rows):
 
 def main(argv=None):
     a = parse_args(argv)
+    if a.brier_w < 0:
+        raise ValueError("--brier_w must be nonnegative")
     if a.resume:
         require_state(os.path.join(a.out, "state"))
     if a.full_ft:
+        if a.init_adapter or a.brier_w:
+            raise ValueError("--init_adapter and --brier_w currently support LoRA training only")
         from trainjev.train_full import main_full
 
         return main_full(a)
@@ -207,12 +259,19 @@ def main(argv=None):
     body = base.model  # Qwen3.5 text model (embeddings + layers + final norm); lm_head is not used
     body.config.use_cache = False
     cfg = LoraConfig(r=a.lora_r, lora_alpha=2 * a.lora_r, lora_dropout=0.05, target_modules=LORA_TARGETS, bias="none")
-    body = get_peft_model(body, cfg)
+    head = DecisionHead(init_rows)
+    if a.init_adapter:
+        body = load_trained(body, head, a.init_adapter, trainable=True)
+        if body.peft_config["default"].r != a.lora_r:
+            raise ValueError("--lora_r does not match --init_adapter")
+        log(f"initialized LoRA and decision head from {a.init_adapter}; optimizer reset")
+    else:
+        body = get_peft_model(body, cfg)
     if not a.no_gc:
         body.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
         body.enable_input_require_grads()
     body.to(dev)
-    head = DecisionHead(init_rows).to(dev)
+    head.to(dev)
     lora_params = [p for p in body.parameters() if p.requires_grad]
     log(f"trainable: LoRA {sum(p.numel() for p in lora_params) / 1e6:.1f}M  "
         f"head {sum(p.numel() for p in head.parameters()) / 1e3:.0f}k")
@@ -280,9 +339,16 @@ def main(argv=None):
             log(f"resumed from {state_dir} at step {start}")
     t0 = time.time()
     tok_seen = 0
+    draw_counts = Counter()
+    draw_weights = Counter()
     body.train()
     last = a.max_steps or steps
     for s, rows, ids in step_batches(a, tok, step_rows, augment, rank, world, start, last):
+        for r in rows:
+            key = "mixed" if r.get("_mixed") else "base"
+            draw_counts[key] += 1
+            draw_counts[f"source:{r.get('domain') or r.get('source', 'unknown')}"] += 1
+            draw_weights[key] += r["weight"]
         enc = [(len(e), (e, r)) for e, r in zip(ids, rows)]
         for i, g in enumerate(opt.param_groups):
             g["lr"] = base_lrs[i] * lr_mult(s)
@@ -290,7 +356,7 @@ def main(argv=None):
         # ranks may run different numbers of micro-batches: gradients are reduced manually after all of them
         for mb in micro_batches(enc, a.micro_tokens):
             h = last_hidden(body, [e for e, _ in mb], pad, dev)
-            loss = micro_loss(head, h, [r for _, r in mb], a.rps_w)
+            loss = micro_loss(head, h, [r for _, r in mb], a.rps_w, a.brier_w)
             tot_loss += loss.detach()
             tot_w += sum(r["weight"] for _, r in mb)
             tok_seen += sum(len(e) for e, _ in mb)
@@ -319,6 +385,21 @@ def main(argv=None):
                 save("best")
         if a.save_state_every and (s + 1) % a.save_state_every == 0:
             save_state(state_dir, body, head, opt, {"step": s + 1, "best": best, "hist": hist})
+    local_stats = {"counts": dict(draw_counts), "weights": dict(draw_weights), "tokens": tok_seen}
+    gathered_stats = [None] * world
+    dist.all_gather_object(gathered_stats, local_stats)
+    if rank == 0:
+        counts, weights = Counter(), Counter()
+        for st in gathered_stats:
+            counts.update(st["counts"])
+            weights.update(st["weights"])
+        total = counts["base"] + counts["mixed"]
+        stats = {"step_start": start, "step_stop": last, "counts": dict(counts), "weights": dict(weights),
+                 "actual_mix_fraction": counts["mixed"] / max(1, total),
+                 "tokens": sum(st["tokens"] for st in gathered_stats), "seconds": time.time() - t0}
+        with open(os.path.join(a.out, f"sampling_{start:05d}_{last:05d}.json"), "w") as f:
+            json.dump(stats, f, indent=2)
+        log("[sampling]", json.dumps(stats))
     log(f"done; best val KL {best[0]:.4f} at step {best[1]}")
     dist.destroy_process_group()
 

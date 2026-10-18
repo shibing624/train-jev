@@ -316,3 +316,27 @@ Qwen3.8-27B notes:
 | add your own labelled data | convert to the row schema; `--mix mydata.jsonl:2` |
 | more capacity | `--lora_r 64` (α is set to 2r) |
 | hard labels only | one-hot `target`; expect higher confidence, so re-fit temperatures and watch ECE |
+
+## 11. The v0.3.0 continued-training recipe
+
+v0.3.0 does not train from scratch: it continues the v0.2.0 LoRA + head (`--init_adapter`, fresh optimizer) and replaces a
+fixed `--mix_fraction` of every step with new supervision, the rest being jev-distill replay. 4B and 27B differ only in the
+backbone, starting point and memory settings:
+
+```bash
+# 27B (3×H20; for 4B use --base Qwen/Qwen3.5-4B, the 4B v0.2.0 start, plus --no_gc --micro_tokens 4096)
+torchrun --nproc_per_node 3 -m trainjev.train \
+  --base Qwen/Qwen3.8-27B --data data/jev-distill-corpus-v3 \
+  --init_adapter releases/train-jev-27b-lora-v0.2.0 \
+  --mix data/v030/math.jsonl,data/v030/public_curated.jsonl,data/v030/rules.jsonl --mix_fraction 0.125 \
+  --kind_counts choice:64,noul:32,score:32 --batch 128 --micro_tokens 16384 \
+  --lr 2e-5 --head_lr 4e-5 --steps 2048 --max_steps 1024 --seed 17 \
+  --eval_every 256 --val_n 2500 --save_state_every 128 --out runs/jev-27b-v030
+```
+
+`--init_adapter` takes a local directory: first `huggingface-cli download shibing624/train-jev-27b-lora --revision v0.2.0 --local-dir releases/train-jev-27b-lora-v0.2.0`. Sources,
+revisions and counts of the new supervision (GSM8K distractor views, PAWS, AQuA-RAT, QASC, HelpSteer2, CC0 rules) are recorded
+in the release's `training_recipe.json`; this repository does not ship the data files. Checkpoints are chosen only on a
+development set disjoint from the final evaluation; temperatures are fitted on a separate gold calibration set.
+Measured: 4B on 3×H20, 2,048 steps in 1.3 h; 27B on 3×H20 with gradient checkpointing, about 27.6 s/step, 1,024 steps in
+7.9 h, 74.9 GB peak per GPU.

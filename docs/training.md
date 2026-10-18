@@ -288,3 +288,24 @@ Qwen3.8-27B 说明：
 | 加入自己的标注数据 | 转成上面的行格式，`--mix mydata.jsonl:2` |
 | 增加容量 | `--lora_r 64`（α 自动设为 2r） |
 | 只有硬标签 | target 用 one-hot；模型会更自信，记得重新拟合温度并关注 ECE |
+
+## 11. v0.3.0 续训配方
+
+v0.3.0 不从头训练，而是在 v0.2.0 的 LoRA + 决策头上续训（`--init_adapter`，优化器重置），每步按 `--mix_fraction` 定额替换成新监督数据，
+其余仍是 jev-distill 回放。4B 与 27B 只有底座、起点和显存设置不同：
+
+```bash
+# 27B（3×H20；4B 换 --base Qwen/Qwen3.5-4B、起点换 4B v0.2.0，并加 --no_gc --micro_tokens 4096）
+torchrun --nproc_per_node 3 -m trainjev.train \
+  --base Qwen/Qwen3.8-27B --data data/jev-distill-corpus-v3 \
+  --init_adapter releases/train-jev-27b-lora-v0.2.0 \
+  --mix data/v030/math.jsonl,data/v030/public_curated.jsonl,data/v030/rules.jsonl --mix_fraction 0.125 \
+  --kind_counts choice:64,noul:32,score:32 --batch 128 --micro_tokens 16384 \
+  --lr 2e-5 --head_lr 4e-5 --steps 2048 --max_steps 1024 --seed 17 \
+  --eval_every 256 --val_n 2500 --save_state_every 128 --out runs/jev-27b-v030
+```
+
+`--init_adapter` 接本地目录：先 `huggingface-cli download shibing624/train-jev-27b-lora --revision v0.2.0 --local-dir releases/train-jev-27b-lora-v0.2.0`。
+新监督数据（GSM8K 双干扰项、PAWS、AQuA-RAT、QASC、HelpSteer2、CC0 规则）的来源 revision 与数量记录在发布包的 `training_recipe.json`，
+本仓库不分发数据文件。checkpoint 只在与最终评测不重合的开发集上挑选；温度在独立的金标校准集上拟合。
+实测：4B 3×H20 2,048 步 1.3 h；27B 3×H20（gradient checkpointing）约 27.6 s/step，1,024 步 7.9 h，单卡峰值 74.9 GB。

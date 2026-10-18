@@ -15,7 +15,7 @@ NUM_SLOTS = 24
 KINDS = ("noul", "score", "choice")
 
 
-def kl_rps(z, target, kind, rps_w):
+def kl_rps(z, target, kind, rps_w, brier_w=0.0):
     """KL(target || softmax(z)) (+ ``rps_w`` * ranked probability score for score rows). ``z``, ``target``: ``[n]``."""
     logp = F.log_softmax(z, -1)
     t = target.clamp_min(0)
@@ -23,6 +23,8 @@ def kl_rps(z, target, kind, rps_w):
     if kind == "score" and rps_w:
         cp, ct = torch.cumsum(logp.exp(), 0), torch.cumsum(t, 0)
         kl = kl + rps_w * ((cp - ct) ** 2)[:-1].sum() / (len(t) - 1)
+    if brier_w:
+        kl = kl + brier_w * ((logp.exp() - t) ** 2).sum()
     return kl
 
 
@@ -45,7 +47,7 @@ def pack_targets(rows):
     return lo, n, tgt, score, w
 
 
-def kl_rps_batch(z, lo, n, target, is_score, rps_w):
+def kl_rps_batch(z, lo, n, target, is_score, rps_w, brier_w=0.0):
     """Per-row ``kl_rps`` for a micro-batch. ``z``: ``[B, 24]`` head logits over all slots; the other arguments come
     from :func:`pack_targets` (on ``z``'s device). Only slots ``lo .. lo + n`` of each row take part. -> ``[B]``."""
     slot = torch.arange(z.shape[1], device=z.device)
@@ -62,4 +64,6 @@ def kl_rps_batch(z, lo, n, target, is_score, rps_w):
         k = (slot[: b - a] < (n - 1)[:, None]).float()
         rps = (((cp - ct) ** 2) * k).sum(-1) / (n - 1).clamp_min(1)
         kl = kl + rps_w * rps * is_score
+    if brier_w:
+        kl = kl + brier_w * ((logp.exp() - t) ** 2).sum(-1)
     return kl

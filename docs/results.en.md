@@ -61,14 +61,14 @@ Calibrated metrics; `choice` rows with > 16 options are excluded.
 In distribution the 4B model is essentially indistinguishable from the 27B one; the gap opens on OOD task families
 (0.311 vs 0.108).
 
-## 3. Decision Index 0.3 (public benchmarks)
+## 3. Decision Index 0.3 (historical 35-benchmark sample)
 
 [apolinario/decision-index](https://github.com/apolinario/decision-index), edition 0.3. We score a 6,000-row stratified
 sample (round-robin over benchmarks, whole groups, the kit's default seed) and build a sample-only suite so the
 official scorer computes coverage over the sample (`scripts/di_sample.py`). Every model answers the same 6,000 rows
 through the same `/v1/systemone` HTTP engine.
 
-Two of the 37 benchmarks in the 0.3 public index could not be rebuilt in our environment: **HLE** (gated on the HF Hub) and **HoVer**
+For this historical sample, two of the 37 public benchmarks could not be rebuilt at the time: **HLE** (gated on the HF Hub) and **HoVer**
 (a 2 GB Wikipedia download). They are removed from their areas and the remaining benchmarks renormalised
 (`scripts/di_index.py`); the board's published per-benchmark skills are re-scored on the same 35-benchmark panel, so
 every row below is comparable, but **none of them equals the official Decision Index total**.
@@ -90,6 +90,8 @@ every row below is comparable, but **none of them equals the official Decision I
 Sanity check of the sampled protocol: our Kev-4B is 38.4 against the board's 39.5, and our JEV-27B-VL is 54.1 against
 the board's JEV-27B at 55.0. The sample is accurate to about a point at the index level; individual benchmarks
 on ~150 rows each are noisy.
+
+The public 37-benchmark text panel including HLE/HoVer was completed on 2026-10-17; see §11. This historical sample and board rescores remain separate.
 
 **Reading.** train-jev-4b-lora and Kev-4B are in the same tier (≈ 40). The leading 4B models are 11–16 points higher, with
 most of the gap in Knowledge & Reasoning and Language Understanding. Closing that gap needs broader gold-labelled data (see the roadmap).
@@ -323,14 +325,116 @@ Validation trajectory (`--val_n 4000`, cumulative wall time):
 - **The weak spot is vision**: mean skill 0.760 vs 0.782, lower on BLINK, RealWorldQA, CharXiv and InfoVQA, higher
   only on CV-Bench (0.770 vs 0.743). The vision tower was not trained.
 
-## 11. Limitations
+## 11. Decision Index 0.3: full public 37-benchmark text panel (2026-10-17)
 
-- The Decision Index numbers are a 6,000-row stratified sample over 35 benchmarks (HLE and HoVer removed and the areas
-  renormalised). They compare models on the same panel; they are **not the official total**. Each benchmark has about
-  150 rows, so single benchmarks are noisy.
+Both **v0.2.0 LoRA release checkpoints** answered the same ordered **110,087 requests / 272,229 subquestions**.
+This covers every scoreable text request in the exported public 37-benchmark panel, including **501 HLE text requests and 4,000 HoVer requests**.
+It is neither full multimodal HLE nor the maintainers' Full leaderboard with private tests. Kev, JEV-27B-VL and the TypeSafe API were not rerun on this input.
+
+Both used HF transformers with a merged bf16 text backbone, fp32 decision head, explicit `single`, and 32,768 context/batch-token budgets.
+Original per-kind calibration temperatures were retained: no new training, refitting, truncation or benchmark-dependent strategy.
+Frozen source/checkpoint hashes remained unchanged. Independent checks verified every actual payload, every answer key and all 37 catalog counts;
+CPU rescoring reproduced the scores.
+
+| Scope | train-jev-4b-lora | train-jev-27b-lora | Coverage / readout |
+|---|---:|---:|---|
+| Historical 35, 6,000-row sample (§3) | 40.35 | 54.57 | HLE/HoVer removed; wide-choice `tournament` |
+| New 37, quick 6,000 requests | 38.14 | 53.29 | 132 HLE / 132 HoVer; `single` |
+| **New 37, full 110,087 requests** | **37.40** | **53.88** | All requests successful; `single` |
+
+Full `balanced_raw`: 52.98 / 65.08 (not overall accuracy); `breadth_skill`: 36.35 / 52.94.
+Each model has **110,087 unique/latest ok, zero request errors, all 272,229 subquestions answered, coverage=1.0**.
+The canonical `complete=false` flag is preserved because its suite check also covers display benchmarks outside this indexed text panel;
+it does not mean missing requests in the specified 37-panel export, nor permit claiming the private Full leaderboard.
+
+| Full area skill | train-jev-4b-lora | train-jev-27b-lora |
+|---|---:|---:|
+| Knowledge & Reasoning | 0.2798 | 0.4127 |
+| Language | 0.3881 | 0.5830 |
+| Retrieval & Classification | 0.3444 | 0.5395 |
+| Tools & Automation | 0.5786 | 0.7230 |
+| Arts & Taste | 0.2662 | 0.4122 |
+
+| Full benchmark | Requests | train-jev-4b-lora accuracy | train-jev-27b-lora accuracy |
+|---|---:|---:|---:|
+| HLE (text subset) | 501 | 9.98% | 7.39% |
+| HoVer | 4,000 | 63.25% | 75.08% |
+
+The official HLE chance baseline is 0.1641, so both HLE chance-corrected skills clip to zero; 27B does not win every benchmark.
+
+Timing on one H20 per model, excluding loading/scoring and the pause: 4B's first 2,882 requests span 1,821.5 seconds,
+then its resumed 107,205 requests take 10,586.3 seconds (about **3.45 active hours** combined); 27B takes **56,528.0 seconds / 15.70 hours**.
+Full request p50 / p95: **45.9 / 459.1 ms** for 4B, **154.6 / 2,470.7 ms** for 27B.
+Requests may contain multiple questions and the hardware was shared with occupier/other jobs; these are not exclusive-GPU per-question latency guarantees.
+
+Uncompressed input SHA256: `1a2875db806c4d7d8f5fe0f2ddaa01c7d324a304a10cb15db16d57d5a915136b`.
+Machine-readable scores, 37 catalog counts, protocol and fingerprints: [di37_results.json](../reports/v0.2.0/di37_results.json).
+27B leads 4B by 16.48 index points on this full panel, a comparison of different backbones/sizes—not a v0.3 training-data gain.
+Do not interpret differences across historical 35, new 37 quick and new 37 full as causal training/readout improvements.
+
+## 12. Limitations
+
+- §3 is the historical 35-benchmark sample; §11 is the full public 37-benchmark scoreable text panel. They are not mixed and neither is the
+  private Full leaderboard. New HLE coverage is only 501 text requests, not full multimodal HLE. Quick per-benchmark scores remain noisy.
 - One training seed per model; seed variance was not measured. The McNemar tests above are not corrected for multiple
   comparisons.
 - The in-distribution splits of jev-distill share states (but no complete prompts) with the training split, so
   in-distribution KL is not evidence of generalisation to new states; OOD states do not overlap.
 - Vision covers 1,444 rows (CV-Bench, BLINK, RealWorldQA and CharXiv 300 each, InfoVQA 244).
 - Conclusions hold for the current distillation-only data; they are not extrapolated to recipes with broader gold data.
+
+## 13. v0.3.0: continued training with gold and rule data
+
+4B and 27B use the same recipe, continuing from their own v0.2.0 LoRA + head with a fresh optimizer: 87.5% jev-distill
+replay and 12.5% new supervision per step (two GSM8K distractor views, PAWS, AQuA-RAT, QASC, HelpSteer2, CC0 exact-rule
+examples), LoRA / head learning rates 2e-5 / 4e-5, seed 17, a 2,048-step schedule. 4B ran all 2,048 steps (3×H20, 1.3 h);
+27B ran 1,024 steps (3×H20, gradient checkpointing, 7.9 h). Checkpoints were chosen on a separate 3,550-question development
+set only (highest macro gain with no >16-option regression); both sizes picked step 512.
+
+### 13.1 Development selection (27B, vs 27B v0.2.0)
+
+| step | macro Δpp [95%] | public gold | legacy | wide |
+|---:|---:|---:|---:|---:|
+| 256 | +3.76 [2.69, 4.77] | +6.59 | +0.69 | +1.67 |
+| **512** | **+4.80 [3.74, 5.89]** | +9.35 | +1.53 | +1.67 |
+| 768 | +4.70 [3.51, 5.87] | +9.72 | +0.97 | 0.00 |
+| 1,024 | +4.21 [3.02, 5.35] | +9.60 | +0.42 | −1.11 |
+
+### 13.2 Sealed same-question PK (2,494 questions, 22 tasks)
+
+Six models, identical inputs, each with its native stack and shipped temperatures. Per-task accuracy and all paired
+comparisons: [reports/v0.3.0/external_final2.json](../reports/v0.3.0/external_final2.json); summary table in the
+[README](../README_EN.md#v030-continued-training-with-gold-and-rule-data).
+27B v0.3.0 vs JEV-27B-VL: paired +5.25pp [4.01, 6.50]; vs 27B v0.2.0 +4.73pp [3.71, 5.80]; vs 4B v0.3.0 +4.54pp [3.15, 5.91].
+
+### 13.3 Historical suites (same protocol as §2–§6)
+
+PK / transfer-v4 / the Decision Index sample go through `/v1/systemone` with `tournament` for wide choices. Distillation KL
+uses raw logits: the v0.3.0 temperatures are fitted on a gold calibration set and sharpen score questions against the
+jev-distill teacher, so they are not used for KL.
+
+| Metric | 4B v0.2.0 | 4B v0.3.0 | 27B v0.2.0 | 27B v0.3.0 |
+|---|---:|---:|---:|---:|
+| test_set_30k KL (raw) ↓ | 0.0224 | 0.0230 | 0.0185 | 0.0185 |
+| OOD KL (raw) ↓ | 0.312 | 0.483 | 0.110 | 0.123 |
+| OOD choice top-1 ↑ | 0.888 | 0.900 | 0.935 | 0.940 |
+| 13-dataset PK accuracy ↑ | 0.647 | 0.642 | 0.678 | 0.687 |
+| PK ECE ↓ | 0.076 | 0.050 | 0.103 | 0.048 |
+| PK: 8 sources Kev never saw ↑ | 0.603 | 0.600 | 0.630 | 0.640 |
+| transfer-v4 accuracy ↑ | 0.779 | 0.805 | 0.851 | 0.858 |
+| transfer-v4 ECE ↓ | 0.075 | 0.054 | 0.053 | 0.032 |
+| transfer-v4 NLL ↓ | 0.745 | 0.596 | 0.411 | 0.377 |
+| Decision Index 35-benchmark sample ↑ | 40.35 | 41.49 | 54.57 | ⏳ |
+| Decision Index 37-benchmark full ↑ | 37.40 | 39.01 | 53.88 | ⏳ |
+| Vision mean skill ↑ | 0.697 | 0.693 | 0.760 | 0.765 |
+| PK p50 latency | 43.5 ms | 44.9 ms | 81.9 ms | 84.5 ms |
+
+- PK pairing: 4B v0.3.0 vs v0.2.0 discordant 24 / 30 (p=0.50); 27B 25 / 13 (p=0.073).
+- 4B Decision Index 37 full: all 110,087 requests ok; paired question-level macro +0.97pp [0.78, 1.17]; all five areas up
+  (tools +3.0, retrieval +2.1, language +1.5, arts +0.9, knowledge +0.7 skill points); 25 benchmarks up / 10 down / 2 equal,
+  McNemar-significant 17 up / 3 down; #38 skill 8.0 → 5.8, #44 −2.3 and #37 −1.5 significantly down. The panel only has
+  choice / noul questions; re-tempering to the v0.2.0 temperatures changes 0 answers.
+- The OOD KL increase is the expected cost of gold supervision moving away from the Jev teacher: accuracy does not drop, and
+  refitting temperatures on the jev-distill calibration split gives 0.472 / 0.121 (4B / 27B), close to the raw values.
+- Conclusion: the v0.3.0 recipe gives small, consistent out-of-distribution gains (transfer-v4, Decision Index, calibration),
+  much smaller than on the sealed PK, which contains in-family rule items and public-gold sources seen in training.

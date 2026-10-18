@@ -129,7 +129,7 @@ def is_full_checkpoint(ckpt):
         os.path.join(ckpt, "adapter_config.json"))
 
 
-def load_trained(text_model, head, ckpt):
+def load_trained(text_model, head, ckpt, *, trainable=False):
     """Apply a train-jev checkpoint to ``text_model`` (a Qwen3.5 text model) and ``head``; returns the text model.
 
     LoRA checkpoints are merged into the weights; full checkpoints replace every weight (strict key match).
@@ -138,6 +138,8 @@ def load_trained(text_model, head, ckpt):
 
     ckpt = resolve_checkpoint(ckpt)
     if is_full_checkpoint(ckpt):
+        if trainable:
+            raise ValueError("A trainable LoRA initialization requires an adapter checkpoint, not full weights")
         from safetensors.torch import load_file
 
         sd = load_file(os.path.join(ckpt, "model.safetensors"))
@@ -149,7 +151,10 @@ def load_trained(text_model, head, ckpt):
     else:
         from peft import PeftModel
 
-        text_model = PeftModel.from_pretrained(text_model, ckpt).merge_and_unload()
+        if trainable:
+            text_model = PeftModel.from_pretrained(text_model, ckpt, is_trainable=True)
+        else:
+            text_model = PeftModel.from_pretrained(text_model, ckpt).merge_and_unload()
     sd = torch.load(os.path.join(ckpt, "head.pt"), map_location="cpu", weights_only=True)
     if tuple(sd["weight"].shape) != tuple(head.weight.shape) or tuple(sd["bias"].shape) != tuple(head.bias.shape):
         raise ValueError("Decision head dimensions do not match the selected backbone")

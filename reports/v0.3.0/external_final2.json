@@ -1,0 +1,671 @@
+{
+  "version": "v0.3.0",
+  "scope": "same frozen 2494-row final sample, same inputs, each model under its own native inference protocol",
+  "not_a_leaderboard_score": "Not Decision Index leaderboard numbers; no external model was retrained or re-tempered.",
+  "suite_sha256": "59213740f5cc627495038505aec7bfb8539d5f726fa4f771825a217b8d17cc71",
+  "final_gold_rows": 2494,
+  "macro_tasks": 22,
+  "checkpoint_selection": "4B and 27B v0.3.0 checkpoints were both selected on a separate development set before this sample was scored.",
+  "models": {
+    "v0.2.0": {
+      "model": "train-jev-4b-lora v0.2.0",
+      "native_protocol": "train-jev merged-BF16 single-pass reader, fp32 head, bundled temperatures",
+      "task_macro_accuracy": 0.635861522706496,
+      "public_gold_macro_accuracy": 0.5702726548627794,
+      "legacy_macro_accuracy": 0.7022222222222222,
+      "exact_rule_macro_accuracy": 0.5468660355708548,
+      "calibrated_macro_nll": 1.049759652153627,
+      "calibrated_macro_brier": 0.4961191446070023,
+      "macro_ece": 0.16471093089907712,
+      "counterfactual_pair_accuracy": 0.346,
+      "order_consistency": 0.84375
+    },
+    "v0.3.0": {
+      "model": "train-jev-4b-lora v0.3.0",
+      "native_protocol": "train-jev merged-BF16 single-pass reader, fp32 head, bundled temperatures",
+      "task_macro_accuracy": 0.7418372151101246,
+      "public_gold_macro_accuracy": 0.6325164731228969,
+      "legacy_macro_accuracy": 0.6988888888888889,
+      "exact_rule_macro_accuracy": 0.9006143622107478,
+      "calibrated_macro_nll": 0.7508935982214792,
+      "calibrated_macro_brier": 0.3500786671259523,
+      "macro_ece": 0.11201286234502184,
+      "counterfactual_pair_accuracy": 0.866,
+      "order_consistency": 0.9114583333333334,
+      "latency_p50_p95_ms": [
+        42.36232116818428,
+        100.2432500012219
+      ],
+      "single_row_vs_scored_mismatch_rows": 6
+    },
+    "27B-v0.2.0": {
+      "model": "train-jev-27b-lora v0.2.0",
+      "native_protocol": "train-jev merged-BF16 single-pass reader, fp32 head, bundled temperatures",
+      "task_macro_accuracy": 0.7399169754633028,
+      "public_gold_macro_accuracy": 0.6341030322885548,
+      "legacy_macro_accuracy": 0.7344444444444446,
+      "exact_rule_macro_accuracy": 0.8214046662841844,
+      "calibrated_macro_nll": 0.7247609488549681,
+      "calibrated_macro_brier": 0.3488381586222528,
+      "macro_ece": 0.1174995141861319,
+      "counterfactual_pair_accuracy": 0.742,
+      "order_consistency": 0.9010416666666666
+    },
+    "27B-v0.3.0": {
+      "model": "train-jev-27b-lora v0.3.0",
+      "native_protocol": "train-jev merged-BF16 single-pass reader, fp32 head, bundled temperatures",
+      "task_macro_accuracy": 0.7872115323961828,
+      "public_gold_macro_accuracy": 0.7064907374159531,
+      "legacy_macro_accuracy": 0.7488888888888888,
+      "exact_rule_macro_accuracy": 0.9176706827309236,
+      "calibrated_macro_nll": 0.6288372163402411,
+      "calibrated_macro_brier": 0.29582686417558945,
+      "macro_ece": 0.09775462606997513,
+      "counterfactual_pair_accuracy": 0.892,
+      "order_consistency": 0.9010416666666666,
+      "latency_p50_p95_ms": [
+        150.57589951902628,
+        352.64655654318614
+      ],
+      "single_row_vs_scored_mismatch_rows": 6
+    },
+    "Kev-4B": {
+      "model": "kev-4b",
+      "native_protocol": "Kev native LocalPredictor, fp32 unmerged, shipped temperature 2.406050 without refit",
+      "task_macro_accuracy": 0.6349500793914499,
+      "public_gold_macro_accuracy": 0.5669973815755216,
+      "legacy_macro_accuracy": 0.7011111111111111,
+      "exact_rule_macro_accuracy": 0.5479298144960795,
+      "calibrated_macro_nll": 1.0181561250949756,
+      "calibrated_macro_brier": 0.4996387380482712,
+      "macro_ece": 0.1589691928415456,
+      "counterfactual_pair_accuracy": 0.33,
+      "order_consistency": 0.8697916666666666,
+      "latency_p50_p95_ms": [
+        96.81129176169634,
+        251.14000448957086
+      ]
+    },
+    "JEV-27B-VL": {
+      "model": "autotrust/JEV-27B-VL",
+      "native_protocol": "native /v1/decide service, strategy single, thinking off, bundled temperatures",
+      "task_macro_accuracy": 0.7347178380279433,
+      "public_gold_macro_accuracy": 0.6223687918846117,
+      "legacy_macro_accuracy": 0.7266666666666666,
+      "exact_rule_macro_accuracy": 0.8257195448460509,
+      "calibrated_macro_nll": 0.7613522575284409,
+      "calibrated_macro_brier": 0.35399162525635464,
+      "macro_ece": 0.10658638180110107,
+      "counterfactual_pair_accuracy": 0.746,
+      "order_consistency": 0.8802083333333334,
+      "latency_p50_p95_ms": [
+        134.88917984068394,
+        324.11021697334945
+      ]
+    }
+  },
+  "paired_candidate_vs_reference": {
+    "27B-v0.3.0_vs_27B-v0.2.0": {
+      "all": {
+        "macro_delta_pp": 4.729455693288012,
+        "paired_group_bootstrap_95ci_pp": [
+          3.709597261750196,
+          5.801044669693442
+        ],
+        "groups": 1606,
+        "macro_tasks": 22
+      },
+      "public": {
+        "macro_delta_pp": 7.238770512739831,
+        "paired_group_bootstrap_95ci_pp": [
+          3.855427155431906,
+          10.678773541202084
+        ],
+        "groups": 372,
+        "macro_tasks": 4
+      },
+      "legacy": {
+        "macro_delta_pp": 1.4444444444444446,
+        "paired_group_bootstrap_95ci_pp": [
+          0.3724298968947283,
+          2.6605410797788953
+        ],
+        "groups": 734,
+        "macro_tasks": 12
+      },
+      "rules": {
+        "macro_delta_pp": 9.626601644673933,
+        "paired_group_bootstrap_95ci_pp": [
+          7.693662637759433,
+          11.514666610436064
+        ],
+        "groups": 500,
+        "macro_tasks": 6
+      },
+      "wide": {
+        "macro_delta_pp": 1.3333333333333335,
+        "paired_group_bootstrap_95ci_pp": [
+          -0.45662100456621,
+          3.3451027627734464
+        ],
+        "groups": 149,
+        "macro_tasks": 3
+      }
+    },
+    "27B-v0.3.0_vs_JEV-27B-VL": {
+      "all": {
+        "macro_delta_pp": 5.249369436823954,
+        "paired_group_bootstrap_95ci_pp": [
+          4.011810486407252,
+          6.495066675461929
+        ],
+        "groups": 1606,
+        "macro_tasks": 22
+      },
+      "public": {
+        "macro_delta_pp": 8.41219455313415,
+        "paired_group_bootstrap_95ci_pp": [
+          4.92408562486099,
+          12.104439346530613
+        ],
+        "groups": 372,
+        "macro_tasks": 4
+      },
+      "legacy": {
+        "macro_delta_pp": 2.2222222222222223,
+        "paired_group_bootstrap_95ci_pp": [
+          0.6048992799325741,
+          3.9034749516212233
+        ],
+        "groups": 734,
+        "macro_tasks": 12
+      },
+      "rules": {
+        "macro_delta_pp": 9.195113788487282,
+        "paired_group_bootstrap_95ci_pp": [
+          7.056479729553694,
+          11.39524806528266
+        ],
+        "groups": 500,
+        "macro_tasks": 6
+      },
+      "wide": {
+        "macro_delta_pp": 2.2222222222222223,
+        "paired_group_bootstrap_95ci_pp": [
+          -0.44225250558800205,
+          5.261108959811728
+        ],
+        "groups": 149,
+        "macro_tasks": 3
+      }
+    },
+    "27B-v0.3.0_vs_Kev-4B": {
+      "all": {
+        "macro_delta_pp": 15.226145300473293,
+        "paired_group_bootstrap_95ci_pp": [
+          13.41667999152504,
+          17.101609291866822
+        ],
+        "groups": 1606,
+        "macro_tasks": 22
+      },
+      "public": {
+        "macro_delta_pp": 13.94933558404316,
+        "paired_group_bootstrap_95ci_pp": [
+          9.245401181971765,
+          18.786214043579886
+        ],
+        "groups": 372,
+        "macro_tasks": 4
+      },
+      "legacy": {
+        "macro_delta_pp": 4.777777777777778,
+        "paired_group_bootstrap_95ci_pp": [
+          2.046372677731778,
+          7.539147673468174
+        ],
+        "groups": 734,
+        "macro_tasks": 12
+      },
+      "rules": {
+        "macro_delta_pp": 36.97408682348441,
+        "paired_group_bootstrap_95ci_pp": [
+          33.92090558537465,
+          39.921647153384576
+        ],
+        "groups": 500,
+        "macro_tasks": 6
+      },
+      "wide": {
+        "macro_delta_pp": 10.222222222222221,
+        "paired_group_bootstrap_95ci_pp": [
+          3.8181280828339643,
+          16.874893896952724
+        ],
+        "groups": 149,
+        "macro_tasks": 3
+      }
+    },
+    "27B-v0.3.0_vs_v0.3.0": {
+      "all": {
+        "macro_delta_pp": 4.53743172860582,
+        "paired_group_bootstrap_95ci_pp": [
+          3.1471253914245856,
+          5.9048520613623765
+        ],
+        "groups": 1606,
+        "macro_tasks": 22
+      },
+      "public": {
+        "macro_delta_pp": 7.397426429305624,
+        "paired_group_bootstrap_95ci_pp": [
+          3.967974617472853,
+          10.766446075567742
+        ],
+        "groups": 372,
+        "macro_tasks": 4
+      },
+      "legacy": {
+        "macro_delta_pp": 5.0,
+        "paired_group_bootstrap_95ci_pp": [
+          2.7739384436519154,
+          7.220437484476994
+        ],
+        "groups": 734,
+        "macro_tasks": 12
+      },
+      "rules": {
+        "macro_delta_pp": 1.7056320520175943,
+        "paired_group_bootstrap_95ci_pp": [
+          0.08807424643546555,
+          3.2357698243114905
+        ],
+        "groups": 500,
+        "macro_tasks": 6
+      },
+      "wide": {
+        "macro_delta_pp": 4.444444444444445,
+        "paired_group_bootstrap_95ci_pp": [
+          0.5151691281828267,
+          8.43223187584411
+        ],
+        "groups": 149,
+        "macro_tasks": 3
+      }
+    },
+    "27B-v0.2.0_vs_JEV-27B-VL": {
+      "all": {
+        "macro_delta_pp": 0.5199137435359407,
+        "paired_group_bootstrap_95ci_pp": [
+          -0.4760954368720857,
+          1.5244071950410574
+        ],
+        "groups": 1606,
+        "macro_tasks": 22
+      },
+      "public": {
+        "macro_delta_pp": 1.1734240403943184,
+        "paired_group_bootstrap_95ci_pp": [
+          -0.8578409078265566,
+          3.1129922858351886
+        ],
+        "groups": 372,
+        "macro_tasks": 4
+      },
+      "legacy": {
+        "macro_delta_pp": 0.7777777777777777,
+        "paired_group_bootstrap_95ci_pp": [
+          -0.6315594706873294,
+          2.1809016011781224
+        ],
+        "groups": 734,
+        "macro_tasks": 12
+      },
+      "rules": {
+        "macro_delta_pp": -0.43148785618665164,
+        "paired_group_bootstrap_95ci_pp": [
+          -2.4581855221975357,
+          1.7197230301524
+        ],
+        "groups": 500,
+        "macro_tasks": 6
+      },
+      "wide": {
+        "macro_delta_pp": 0.8888888888888888,
+        "paired_group_bootstrap_95ci_pp": [
+          -1.96331358096064,
+          4.040404040404041
+        ],
+        "groups": 149,
+        "macro_tasks": 3
+      }
+    },
+    "v0.3.0_vs_Kev-4B": {
+      "all": {
+        "macro_delta_pp": 10.68871357186747,
+        "paired_group_bootstrap_95ci_pp": [
+          8.888137006334885,
+          12.594167369292709
+        ],
+        "groups": 1606,
+        "macro_tasks": 22
+      },
+      "public": {
+        "macro_delta_pp": 6.551909154737534,
+        "paired_group_bootstrap_95ci_pp": [
+          2.236638765151268,
+          10.798951661973751
+        ],
+        "groups": 372,
+        "macro_tasks": 4
+      },
+      "legacy": {
+        "macro_delta_pp": -0.22222222222222213,
+        "paired_group_bootstrap_95ci_pp": [
+          -3.0599926728909197,
+          2.7838086266315836
+        ],
+        "groups": 734,
+        "macro_tasks": 12
+      },
+      "rules": {
+        "macro_delta_pp": 35.26845477146682,
+        "paired_group_bootstrap_95ci_pp": [
+          32.26136688374478,
+          38.24247579681164
+        ],
+        "groups": 500,
+        "macro_tasks": 6
+      },
+      "wide": {
+        "macro_delta_pp": 5.777777777777779,
+        "paired_group_bootstrap_95ci_pp": [
+          -1.2759579986613125,
+          12.779477466977468
+        ],
+        "groups": 149,
+        "macro_tasks": 3
+      }
+    },
+    "v0.3.0_vs_JEV-27B-VL": {
+      "all": {
+        "macro_delta_pp": 0.711937708218132,
+        "paired_group_bootstrap_95ci_pp": [
+          -0.8203875766664661,
+          2.3382210719341647
+        ],
+        "groups": 1606,
+        "macro_tasks": 22
+      },
+      "public": {
+        "macro_delta_pp": 1.0147681238285267,
+        "paired_group_bootstrap_95ci_pp": [
+          -2.732494778814055,
+          4.6950318935376645
+        ],
+        "groups": 372,
+        "macro_tasks": 4
+      },
+      "legacy": {
+        "macro_delta_pp": -2.777777777777778,
+        "paired_group_bootstrap_95ci_pp": [
+          -5.247089624434564,
+          -0.42369528733103057
+        ],
+        "groups": 734,
+        "macro_tasks": 12
+      },
+      "rules": {
+        "macro_delta_pp": 7.489481736469688,
+        "paired_group_bootstrap_95ci_pp": [
+          5.10052628228358,
+          9.893513814962237
+        ],
+        "groups": 500,
+        "macro_tasks": 6
+      },
+      "wide": {
+        "macro_delta_pp": -2.2222222222222223,
+        "paired_group_bootstrap_95ci_pp": [
+          -6.789524245778779,
+          2.1324319140774857
+        ],
+        "groups": 149,
+        "macro_tasks": 3
+      }
+    },
+    "v0.3.0_vs_v0.2.0": {
+      "all": {
+        "macro_delta_pp": 10.59756924036285,
+        "paired_group_bootstrap_95ci_pp": [
+          9.43682670157573,
+          11.774166518789562
+        ],
+        "groups": 1606,
+        "macro_tasks": 22
+      },
+      "public": {
+        "macro_delta_pp": 6.22438182601174,
+        "paired_group_bootstrap_95ci_pp": [
+          2.49292911379302,
+          9.907109066604274
+        ],
+        "groups": 372,
+        "macro_tasks": 4
+      },
+      "legacy": {
+        "macro_delta_pp": -0.33333333333333326,
+        "paired_group_bootstrap_95ci_pp": [
+          -1.4812822768965754,
+          0.767561400583991
+        ],
+        "groups": 734,
+        "macro_tasks": 12
+      },
+      "rules": {
+        "macro_delta_pp": 35.37483266398929,
+        "paired_group_bootstrap_95ci_pp": [
+          32.86896120177064,
+          37.77242160496642
+        ],
+        "groups": 500,
+        "macro_tasks": 6
+      },
+      "wide": {
+        "macro_delta_pp": 0.0,
+        "paired_group_bootstrap_95ci_pp": [
+          -2.195304695304695,
+          2.116311971943249
+        ],
+        "groups": 149,
+        "macro_tasks": 3
+      }
+    }
+  },
+  "per_task_accuracy": {
+    "legacy/ag_news": {
+      "v0.2.0": 0.8133333333333334,
+      "v0.3.0": 0.8133333333333334,
+      "27B-v0.2.0": 0.84,
+      "27B-v0.3.0": 0.8533333333333334,
+      "Kev-4B": 0.8666666666666667,
+      "JEV-27B-VL": 0.8533333333333334
+    },
+    "legacy/banking77": {
+      "v0.2.0": 0.6133333333333333,
+      "v0.3.0": 0.64,
+      "27B-v0.2.0": 0.7066666666666667,
+      "27B-v0.3.0": 0.7333333333333333,
+      "Kev-4B": 0.8266666666666667,
+      "JEV-27B-VL": 0.72
+    },
+    "legacy/boolq": {
+      "v0.2.0": 0.88,
+      "v0.3.0": 0.8533333333333334,
+      "27B-v0.2.0": 0.9066666666666666,
+      "27B-v0.3.0": 0.92,
+      "Kev-4B": 0.8533333333333334,
+      "JEV-27B-VL": 0.9066666666666666
+    },
+    "legacy/dair_emotion": {
+      "v0.2.0": 0.6133333333333333,
+      "v0.3.0": 0.5733333333333334,
+      "27B-v0.2.0": 0.6,
+      "27B-v0.3.0": 0.5866666666666667,
+      "Kev-4B": 0.56,
+      "JEV-27B-VL": 0.6133333333333333
+    },
+    "legacy/massive_en": {
+      "v0.2.0": 0.7866666666666666,
+      "v0.3.0": 0.76,
+      "27B-v0.2.0": 0.7733333333333333,
+      "27B-v0.3.0": 0.8,
+      "Kev-4B": 0.56,
+      "JEV-27B-VL": 0.76
+    },
+    "legacy/massive_zh": {
+      "v0.2.0": 0.7866666666666666,
+      "v0.3.0": 0.7866666666666666,
+      "27B-v0.2.0": 0.8,
+      "27B-v0.3.0": 0.7866666666666666,
+      "Kev-4B": 0.6266666666666667,
+      "JEV-27B-VL": 0.7733333333333333
+    },
+    "legacy/sst5": {
+      "v0.2.0": 0.48,
+      "v0.3.0": 0.48,
+      "27B-v0.2.0": 0.48,
+      "27B-v0.3.0": 0.5333333333333333,
+      "Kev-4B": 0.4666666666666667,
+      "JEV-27B-VL": 0.4666666666666667
+    },
+    "legacy/tnews_zh": {
+      "v0.2.0": 0.5466666666666666,
+      "v0.3.0": 0.52,
+      "27B-v0.2.0": 0.6,
+      "27B-v0.3.0": 0.6,
+      "Kev-4B": 0.5866666666666667,
+      "JEV-27B-VL": 0.5733333333333334
+    },
+    "legacy/toxicity": {
+      "v0.2.0": 0.7066666666666667,
+      "v0.3.0": 0.7066666666666667,
+      "27B-v0.2.0": 0.7066666666666667,
+      "27B-v0.3.0": 0.7333333333333333,
+      "Kev-4B": 0.7066666666666667,
+      "JEV-27B-VL": 0.72
+    },
+    "legacy/xnli_en": {
+      "v0.2.0": 0.8266666666666667,
+      "v0.3.0": 0.8266666666666667,
+      "27B-v0.2.0": 0.8933333333333333,
+      "27B-v0.3.0": 0.9066666666666666,
+      "Kev-4B": 0.8533333333333334,
+      "JEV-27B-VL": 0.9066666666666666
+    },
+    "legacy/xnli_zh": {
+      "v0.2.0": 0.7733333333333333,
+      "v0.3.0": 0.8,
+      "27B-v0.2.0": 0.8133333333333334,
+      "27B-v0.3.0": 0.8533333333333334,
+      "Kev-4B": 0.8133333333333334,
+      "JEV-27B-VL": 0.8133333333333334
+    },
+    "legacy/yelp_stars": {
+      "v0.2.0": 0.6,
+      "v0.3.0": 0.6266666666666667,
+      "27B-v0.2.0": 0.6933333333333334,
+      "27B-v0.3.0": 0.68,
+      "Kev-4B": 0.6933333333333334,
+      "JEV-27B-VL": 0.6133333333333333
+    },
+    "public/aqua_rat": {
+      "v0.2.0": 0.5637583892617449,
+      "v0.3.0": 0.5167785234899329,
+      "27B-v0.2.0": 0.6711409395973155,
+      "27B-v0.3.0": 0.7449664429530202,
+      "Kev-4B": 0.5100671140939598,
+      "JEV-27B-VL": 0.6308724832214765
+    },
+    "public/helpsteer2": {
+      "v0.2.0": 0.41216216216216217,
+      "v0.3.0": 0.5067567567567568,
+      "27B-v0.2.0": 0.38513513513513514,
+      "27B-v0.3.0": 0.5135135135135135,
+      "Kev-4B": 0.40540540540540543,
+      "JEV-27B-VL": 0.40540540540540543
+    },
+    "public/paws": {
+      "v0.2.0": 0.7133333333333334,
+      "v0.3.0": 0.8466666666666667,
+      "27B-v0.2.0": 0.8066666666666666,
+      "27B-v0.3.0": 0.86,
+      "Kev-4B": 0.7266666666666667,
+      "JEV-27B-VL": 0.7933333333333333
+    },
+    "public/qasc": {
+      "v0.2.0": 0.5918367346938775,
+      "v0.3.0": 0.6598639455782312,
+      "27B-v0.2.0": 0.673469387755102,
+      "27B-v0.3.0": 0.7074829931972789,
+      "Kev-4B": 0.6258503401360545,
+      "JEV-27B-VL": 0.6598639455782312
+    },
+    "rules/alias_coreference": {
+      "v0.2.0": 0.7289156626506024,
+      "v0.3.0": 0.9939759036144579,
+      "27B-v0.2.0": 0.9939759036144579,
+      "27B-v0.3.0": 1.0,
+      "Kev-4B": 0.5240963855421686,
+      "JEV-27B-VL": 1.0
+    },
+    "rules/calendar_deadline": {
+      "v0.2.0": 0.8192771084337349,
+      "v0.3.0": 0.8554216867469879,
+      "27B-v0.2.0": 0.8493975903614458,
+      "27B-v0.3.0": 0.9518072289156626,
+      "Kev-4B": 0.7951807228915663,
+      "JEV-27B-VL": 0.8614457831325302
+    },
+    "rules/condition_count": {
+      "v0.2.0": 0.19879518072289157,
+      "v0.3.0": 1.0,
+      "27B-v0.2.0": 0.6566265060240963,
+      "27B-v0.3.0": 1.0,
+      "Kev-4B": 0.3855421686746988,
+      "JEV-27B-VL": 0.8012048192771084
+    },
+    "rules/explicit_evidence": {
+      "v0.2.0": 0.6607142857142857,
+      "v0.3.0": 0.9940476190476191,
+      "27B-v0.2.0": 0.9404761904761905,
+      "27B-v0.3.0": 1.0,
+      "Kev-4B": 0.5,
+      "JEV-27B-VL": 0.8988095238095238
+    },
+    "rules/ordered_routing": {
+      "v0.2.0": 0.5,
+      "v0.3.0": 1.0,
+      "27B-v0.2.0": 1.0,
+      "27B-v0.3.0": 1.0,
+      "Kev-4B": 0.6309523809523809,
+      "JEV-27B-VL": 0.8928571428571429
+    },
+    "rules/refund_conversion": {
+      "v0.2.0": 0.37349397590361444,
+      "v0.3.0": 0.5602409638554217,
+      "27B-v0.2.0": 0.4879518072289157,
+      "27B-v0.3.0": 0.5542168674698795,
+      "Kev-4B": 0.45180722891566266,
+      "JEV-27B-VL": 0.5
+    }
+  },
+  "latency_disclaimer": "Same H20 host, different stacks; indicative only. train-jev rows: in-process merged-BF16, one question per forward, no HTTP. Kev-4B: in-process native fp32 without causal-conv1d. JEV-27B-VL: localhost HTTP.",
+  "readout_note": "Scores use the micro-batched readout. A single-row pass flips a handful of near-tied rows (6 per model) due to BF16 batch-shape non-determinism.",
+  "limits": [
+    "Exact-rule tasks are fresh instances of the six rule families used in v0.3.0 training; the lead there shows in-family learning, not unseen-rule generalisation.",
+    "Public-gold gains come from the four public sources present in v0.3.0 training (different items).",
+    "One training seed per model size.",
+    "Backbone pretraining overlap with public gold sources is unknown for every model listed."
+  ]
+}

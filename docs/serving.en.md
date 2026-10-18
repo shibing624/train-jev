@@ -17,7 +17,7 @@ CKPT=runs/jev-4b/best PORT=8020 bash scripts/run_serve.sh
 |---|---|---|
 | `--base` | `Qwen/Qwen3.5-4B` | backbone: HF id or local directory |
 | `--adapter` | – | HF repo id or local checkpoint directory (LoRA + `head.pt` + `calibration.json`) |
-| `--adapter_revision` | – | HF tag or commit of the adapter, e.g. `v0.2.0` |
+| `--adapter_revision` | – | HF tag or commit of the adapter, e.g. `v0.3.0`; `v0.2.0` for the previous release |
 | `--strategy` | `single` | how choices with more than 16 options are read (see below) |
 | `--device` | `cuda` | `cpu` runs fp32 on the CPU (slow; for checks only) |
 | `--host` / `--port` | `127.0.0.1` / `8020` | bind address |
