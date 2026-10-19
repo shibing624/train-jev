@@ -19,7 +19,7 @@ jobs:
       - name: Install
         run: |
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          grep -vE '^(torch|flash-linear-attention|pillow|torchvision)' requirements.txt > /tmp/req.txt
+          grep -vE '^(torch|flash-linear-attention|torchvision)' requirements.txt > /tmp/req.txt
           pip install -r /tmp/req.txt
           pip install pytest ruff
       - name: Lint

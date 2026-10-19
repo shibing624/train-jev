@@ -191,6 +191,28 @@ def load_model(base, adapter="", dtype=torch.bfloat16, device="cuda"):
     return tok, body, head
 
 
+def load_vision_model(base, adapter="", dtype=torch.bfloat16, device="cuda"):
+    """Load the full Qwen VL model; share its trained text body with the ordinary text path."""
+    from transformers import AutoModelForImageTextToText, AutoProcessor
+
+    adapter = resolve_checkpoint(adapter)
+    processor = AutoProcessor.from_pretrained(base)
+    tok = processor.tokenizer
+    check_verbalizers(tok)
+    model = AutoModelForImageTextToText.from_pretrained(base, dtype=dtype)
+    if not hasattr(model.model, "language_model"):
+        raise ValueError("--vision requires a Qwen3.5 / Qwen3.8 multimodal backbone")
+    head = DecisionHead(model.get_output_embeddings().weight[VERBALIZER_IDS])
+    tok.choice_labels, wide_ids = choice_labels(tok)
+    head.wide = model.get_output_embeddings().weight[wide_ids[16:]].detach().float().clone()
+    if adapter:
+        model.model.language_model = load_trained(model.model.language_model, head, adapter)
+    del model.lm_head
+    model.to(device).eval()
+    head.to(device)
+    return tok, model.model.language_model, head, processor, model.model
+
+
 def load_temperatures(path):
     """Per-kind temperatures from a ``calibration.json``; 1.0 for every kind when the file is absent."""
     import json

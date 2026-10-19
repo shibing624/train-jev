@@ -17,6 +17,9 @@ CKPT=runs/jev-4b/best PORT=8020 bash scripts/run_serve.sh
 
 # pin the adapter release and pass a token budget as a trailing CLI argument
 ADAPTER_REVISION=v0.3.0 STRATEGY=tournament bash scripts/run_serve.sh --batch_tokens 32768
+
+# text and image decisions on the same endpoint, using the full VL backbone
+bash scripts/run_serve.sh --vision
 ```
 
 `run_serve.sh` supports `BASE`, `CKPT`, `ADAPTER_REVISION`, `DEVICE`, `NAME`, `HOST`, `PORT` and `STRATEGY`,
@@ -37,6 +40,7 @@ unlike the script, the CLI has no default `--adapter`.
 | `--batch_tokens` | 32768 | padded tokens per forward pass when batching questions |
 | `--calibration` | `<adapter>/calibration.json` | temperatures file |
 | `--base_only` | off | serve the untrained backbone (head initialised from `lm_head`) as a reference |
+| `--vision` | off | load the full Qwen VL backbone for image assets; adds vision-encoder memory |
 | `--proxy URL` | – | put an [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL) `serve_decide.py` server behind the same API, for side-by-side comparison |
 
 Memory: the 4B model in bf16 is about 9 GB and fits a 24 GB GPU; the 27B model is about 54 GB and needs an 80 GB GPU.
@@ -78,8 +82,74 @@ the state and its own question only, never the others' answers. Questions are ba
 Six-level `score` questions use the trained `score` slots with the level texts as a legend. Any other number of levels
 is asked as a `choice` over the level texts, and `score` is the expected index.
 
-Images in `state` are supported only with `--proxy`. Local image decisions use `trainjev.eval_vision`
-(see [evaluation.en.md](evaluation.en.md#5-vision)).
+Start local image serving with `--vision`. Without it the original text-only loader remains in use and image assets return 422 instead of being silently ignored. Vision and text share the same LoRA-applied language model and FP32 decision head. Image questions run separately; text-only questions retain length-based batching.
+
+## Image input: TypeSafe assets
+
+Following the [TypeSafe Images contract](https://docs.typesafe.ai/images), references can appear in string values of `state`, `instructions` and `criteria`. Every image request needs `TypeSafe-Danger-Zone-Images: true`. The existing `noul`, `choice` and `score` types work with images; **`box` is not implemented**.
+
+Prefer multipart, which avoids base64's roughly 33% overhead. Put JSON first in a part named `request`, and each file in its own named part:
+
+```bash
+curl http://localhost:8020/v1/systemone \
+  -H 'TypeSafe-Danger-Zone-Images: true' \
+  -F 'request={
+    "model": "jev-latest",
+    "state": {"door": "a3f1c2e8-door"},
+    "assets": {"a3f1c2e8-door": {"type": "image", "part": "door-photo"}},
+    "questions": {
+      "person_present": {"type": "noul", "instructions": "Is there a person in `door`?"},
+      "carrying": {"type": "choice", "instructions": "What is the person in `door` carrying?",
+                   "criteria": {"package": "A box or parcel.", "bag": "A shopping bag.", "nothing": "Empty hands."}}
+    }
+  };type=application/json' \
+  -F 'door-photo=@door-camera.jpg;type=image/jpeg'
+```
+
+Or use JSON/base64. Resize files on the client to the valid dimensions; the service does not silently resize invalid dimensions:
+
+```python
+import base64
+import uuid
+from pathlib import Path
+import httpx
+
+photo_key = str(uuid.uuid4())
+photo = {
+    "type": "image",
+    "format": "jpg",  # png / jpg / jpeg; must agree with file content
+    "data_base64": base64.b64encode(Path("door-camera.jpg").read_bytes()).decode("ascii"),
+}
+response = httpx.post(
+    "http://localhost:8020/v1/systemone",
+    headers={"TypeSafe-Danger-Zone-Images": "true"},
+    json={
+        "model": "jev-latest",
+        "state": {"door": photo_key},
+        "assets": {photo_key: photo},
+        "questions": {"person_present": {"type": "noul", "instructions": "Is there a person in `door`?"}},
+    },
+    timeout=120,
+)
+response.raise_for_status()
+print(response.json()["answers"])
+```
+
+### References and validation
+
+- Replace string values only, not question IDs, Choice option names or other object keys. Whole values match first; longer strings match left to right. Prefer UUIDs to avoid accidental substring matches.
+- Nested/multiple images and question-local instruction/criterion examples are supported. A question never sees another question's examples. Each repeated use expands the image again.
+- Every asset must be referenced. `type` is optional. Base64 must be standard, padded, without whitespace or a `data:` prefix, with a matching `format`. Multipart may omit format; part wins when both forms are given.
+- Still PNG/JPEG only, **280–1568 pixels on each side**, at most 16 MiB per file. Corrupt, truncated, animated, mismatched or invalid-dimension images fail the whole request, without partial answers.
+- Request body, all processed distinct images and the expanded request each have a 32 MiB limit. This server additionally allows at most 16 distinct assets and 64 expanded references; size/count excesses return 413.
+- Images are EXIF-oriented, converted to RGB, stripped of metadata and passed to the real vision encoder. Image prompts exceeding `--max_len` return 422 without truncation; legacy text-only truncation is unchanged.
+- Bad images/references/header/JSON return 400; invalid questions or a text-only backend return 422; unsupported media/encoding returns 415. Only uncompressed JSON/multipart is supported here, not the entire official compression/SDK feature set.
+- Inference memory exhaustion returns 503 without partial answers; reduce image count or context before retrying. Guaranteed-overlong repeated images are rejected before allocating patch tensors.
+- Assets do not accept URLs or server-local paths. No automatic URL fetches or arbitrary file reads. `--proxy` forwards validated images as data URLs to the configured `/v1/decide`; question/criterion images are labeled in that question's upstream state. The legacy proxy inline-image state format still works.
+
+`GET /health` includes `images` for local vision/proxy availability. The request's `model` is a compatibility field; the actual model is selected at startup. The local server does not validate TypeSafe Bearer keys; use reverse-proxy auth, rate limiting and body-size limits for public deployment.
+
+Image input support is not a guarantee of visual accuracy. This remains zero-shot visual transfer after text-only training. Run `trainjev.eval_vision` for task evaluation (see [evaluation.en.md](evaluation.en.md#5-vision)).
 
 ## Examples
 

@@ -22,7 +22,7 @@ The server speaks TypeSafe's [System One API](https://docs.typesafe.ai/api) (`PO
 - **Calibrated by default**: per-type temperatures help set thresholds for automation and human review; recalibrate for new domains when needed.
 - **Ready to run**: both 4B and 27B LoRA models are on Hugging Face, with one-command serving.
 - **High accuracy, low calibration error**: 27B reaches 78.72% task-macro accuracy on the sealed PK and 0.032 ECE on transfer-v4.
-- **Vision capability**: text training preserves the backbone's vision encoder for zero-shot image-decision evaluation.
+- **Vision capability**: `trainjev.serve --vision` accepts TypeSafe-style image `assets` via JSON/base64 or multipart, with yes/no, choice and score questions on the same `/v1/systemone` endpoint; see [image requests](docs/serving.en.md#image-input-typesafe-assets).
 - **Reusable training method**: KL distillation, gold supervision, rule-data replay, multi-GPU DDP / FSDP2, resumable runs and custom-data mixtures.
 
 ## Models

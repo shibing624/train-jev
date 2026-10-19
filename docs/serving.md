@@ -17,6 +17,9 @@ CKPT=runs/jev-4b/best PORT=8020 bash scripts/run_serve.sh
 
 # 固定 adapter 版本，并通过尾随 CLI 参数调整 token 预算
 ADAPTER_REVISION=v0.3.0 STRATEGY=tournament bash scripts/run_serve.sh --batch_tokens 32768
+
+# 同时支持文本和图片（完整 VL 底座 + 原 LoRA/head/温度，不重新训练）
+bash scripts/run_serve.sh --vision
 ```
 
 `run_serve.sh` 支持 `BASE`、`CKPT`、`ADAPTER_REVISION`、`DEVICE`、`NAME`、`HOST`、`PORT`、`STRATEGY`，
@@ -36,6 +39,7 @@ ADAPTER_REVISION=v0.3.0 STRATEGY=tournament bash scripts/run_serve.sh --batch_to
 | `--batch_tokens` | 32768 | 批量处理多道题时每次前向的 padded token 数 |
 | `--calibration` | `<adapter>/calibration.json` | 温度文件 |
 | `--base_only` | 关 | 用未训练的底座（决策头从 `lm_head` 初始化）作为参照 |
+| `--vision` | 关 | 加载完整 Qwen VL 底座，在同一接口接受图片 assets；额外占用视觉编码器显存 |
 | `--proxy URL` | – | 把 [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL) 的 `serve_decide.py` 服务挂到同一个 API 后面，方便对比 |
 
 显存：4B 模型 bf16 约 9 GB，24 GB 显卡即可；27B 模型约 54 GB，需要 80 GB 显卡。CUDA 上请安装
@@ -76,7 +80,74 @@ ADAPTER_REVISION=v0.3.0 STRATEGY=tournament bash scripts/run_serve.sh --batch_to
 6 个等级的 `score` 题使用训练过的 `score` 槽位，等级文字作为说明附在题目里；其他等级数的题会按"在等级文字之间做选择"
 来问，`score` 返回期望下标。
 
-`state` 里的图片只有 `--proxy` 模式支持。本地的看图决策用 `trainjev.eval_vision`（见 [evaluation.md](evaluation.md#5-看图决策)）。
+本地图片请求需要启动时加 `--vision`。不开启则保留原纯文本加载方式，图片 assets 返回 422，而不是当文本忽略。视觉模型与纯文本路径共享同一个已应用 LoRA 的语言模型和 FP32 决策头；图片题逐题运行，纯文本题仍按长度批处理。
+
+## 图片输入：TypeSafe assets
+
+对照 [TypeSafe Images 接口](https://docs.typesafe.ai/images)，支持 `state`、`instructions`、`criteria` 的字符串值内引用图片。每个请求必须带 `TypeSafe-Danger-Zone-Images: true`。支持现有 `noul` / `choice` / `score`，**不支持 `box` 定位题**。
+
+推荐 multipart：无需 base64 的约 33% 体积膨胀。JSON 必须是第一部分，名字 `request`；图片用不同的文件 part：
+
+```bash
+curl http://localhost:8020/v1/systemone \
+  -H 'TypeSafe-Danger-Zone-Images: true' \
+  -F 'request={
+    "model": "jev-latest",
+    "state": {"door": "a3f1c2e8-door"},
+    "assets": {"a3f1c2e8-door": {"type": "image", "part": "door-photo"}},
+    "questions": {
+      "person_present": {"type": "noul", "instructions": "Is there a person in `door`?"},
+      "carrying": {"type": "choice", "instructions": "What is the person in `door` carrying?",
+                   "criteria": {"package": "A box or parcel.", "bag": "A shopping bag.", "nothing": "Empty hands."}}
+    }
+  };type=application/json' \
+  -F 'door-photo=@door-camera.jpg;type=image/jpeg'
+```
+
+不方便 multipart 时用 JSON/base64；文件事先缩放到下面的范围，服务不会为你偷偷缩放到合法尺寸：
+
+```python
+import base64
+import uuid
+from pathlib import Path
+import httpx
+
+photo_key = str(uuid.uuid4())
+photo = {
+    "type": "image",
+    "format": "jpg",  # png / jpg / jpeg，必须与文件内容一致
+    "data_base64": base64.b64encode(Path("door-camera.jpg").read_bytes()).decode("ascii"),
+}
+response = httpx.post(
+    "http://localhost:8020/v1/systemone",
+    headers={"TypeSafe-Danger-Zone-Images": "true"},
+    json={
+        "model": "jev-latest",
+        "state": {"door": photo_key},
+        "assets": {photo_key: photo},
+        "questions": {"person_present": {"type": "noul", "instructions": "Is there a person in `door`?"}},
+    },
+    timeout=120,
+)
+response.raise_for_status()
+print(response.json()["answers"])
+```
+
+### 引用和校验
+
+- 只替换 `state` / `instructions` / `criteria` 的字符串值，不替换 question ID 或 Choice 选项名等对象键。整值优先，长字符串从左到右匹配；引用可在句中出现，推荐 UUID，避免短词误匹配。
+- 可以嵌套多图，或把例图放进单题 instructions / criteria。该题只看到自己的例图，其他题不会看到它；同一个引用每用一次都展开一次。
+- 每个 asset 必须被上述字段引用。`type` 可省略；`data_base64` 必须是标准带 padding 的 base64，不带 `data:` 前缀或空白；`format` 必填。multipart 可省略 format，同时有 part 和 base64 时 part 优先。
+- PNG / JPEG 静态图，**每边 280–1568 像素**，每文件不超过 16 MiB。拒绝坏图、截断图、动图、格式不符或非法尺寸，整请求失败，不返回部分答案。
+- HTTP 请求体上限 32 MiB（含 base64 / multipart），处理后所有独立图片及按每次引用展开后的请求各上限 32 MiB。本服务另设最多 16 个独立 asset、64 次引用展开；超限返回 413。
+- EXIF 方向校正、转 RGB 和去元数据后送入真实视觉编码器。图片 prompt 超过 `--max_len` 返回 422，不截断图片或其文字。旧纯文本的中间截断行为不变。
+- 非法图片/引用/header/JSON 返回 400，非法题型/选项或未启用视觉返回 422，不支持的 Content-Type / Content-Encoding 返回 415。本地目前只接受未压缩 JSON 或 multipart，不宣称支持官方全部压缩/SDK特性。
+- 推理内存不足返回 503，不返回部分答案；减少图片数或上下文后再试。可确定超长的重复图片在分配 patch 张量前拒绝。
+- assets 不接受 URL 或服务器本地文件路径，不自动访问外网或读任意文件。`--proxy` 会将已验证的图片转为 data URL 转发给配置的 `/v1/decide`；题目或标准中的图片会带标签放入该题的上游 state，避免丢图。原 proxy 的 inline-image state 格式仍可使用。
+
+`GET /health` 的 `images` 字段说明是否开启本地视觉或 proxy。请求 `model` 是兼容字段，实际模型由启动参数确定，不按请求切换模型。该本地服务不验证 TypeSafe 的 Bearer key；公网部署请在反向代理配置鉴权、限流和总请求体限制。
+
+这是图片输入能力，不保证每个视觉判断都正确；模型仍是仅文本训练后的零样本视觉迁移。可用 `trainjev.eval_vision` 验证图像任务（见 [evaluation.md](evaluation.md#5-看图决策)）。
 
 ## 示例
 

@@ -16,7 +16,8 @@ Request mapping, identical for every backend and identical to what the model saw
   choice -> kind choice, options "name" or "name: description"       > 16 options: see "Wide choices" below
   score  -> 6 levels: kind score with the level legend; other level counts: kind choice over the level texts
 Questions of one request are scored independently (each sees the state and its own question only), batched by length.
-Images in ``state`` are supported by ``--proxy`` only; for local image decisions see ``trainjev.eval_vision``.
+Image assets (TypeSafe base64 JSON or multipart) are supported with ``--vision`` or ``--proxy``.
+The text-only loading path remains the default; image requests require TypeSafe-Danger-Zone-Images: true.
 
 Wide choices (17-256 options), ``--strategy`` (the three strategies of JEV-27B-VL's ``serve_decide.py``):
   single      (default, as serve_decide.py on Qwen) one pass: labels A-P (trained head rows), then Q-Z, AA, AB, ...
@@ -38,8 +39,9 @@ import zlib
 
 import torch
 
-from trainjev.data import encode, micro_batches
-from trainjev.modeling import last_hidden, load_model, load_temperatures, resolve_checkpoint
+from trainjev.assets import AssetBundle, AssetError, prepare_assets, read_request
+from trainjev.data import encode, micro_batches, prompt
+from trainjev.modeling import last_hidden, load_model, load_temperatures, load_vision_model, resolve_checkpoint
 
 S = {}
 STRATEGIES = ("single", "tournament", "permute")
@@ -51,6 +53,7 @@ def parse_args(argv=None):
     ap.add_argument("--adapter", default="")
     ap.add_argument("--adapter_revision", default=None, help="HF adapter revision/tag; unused for local paths")
     ap.add_argument("--base_only", action="store_true")
+    ap.add_argument("--vision", action="store_true", help="load the full VL backbone for TypeSafe image assets")
     ap.add_argument("--proxy", default="")
     ap.add_argument("--calibration", default="", help="calibration.json (default: <adapter>/calibration.json)")
     ap.add_argument("--host", default="127.0.0.1")
@@ -72,10 +75,15 @@ def setup(a):
         return
     adapter = "" if a.base_only else resolve_checkpoint(a.adapter, a.adapter_revision)
     a.adapter = adapter
-    tok, body, head = load_model(a.base, adapter, dtype=torch.bfloat16 if a.device == "cuda" else torch.float32,
-                                 device=a.device)
+    dtype = torch.bfloat16 if a.device == "cuda" else torch.float32
+    if a.vision:
+        tok, body, head, processor, vision = load_vision_model(a.base, adapter, dtype=dtype, device=a.device)
+    else:
+        tok, body, head = load_model(a.base, adapter, dtype=dtype, device=a.device)
+        processor = vision = None
     cal = a.calibration or (os.path.join(adapter, "calibration.json") if adapter else "")
-    S.update(tok=tok, body=body, head=head, temps=load_temperatures(cal), lock=asyncio.Lock())
+    S.update(tok=tok, body=body, head=head, processor=processor, vision=vision,
+             temps=load_temperatures(cal), lock=asyncio.Lock())
     print("temperatures", S["temps"], "strategy", a.strategy, flush=True)
 
 
@@ -90,9 +98,46 @@ def _state_text(state):
 
 
 @torch.no_grad()
-def _hf_many(items):
+def _hf_image(kind, state, question, options, assets):
+    if S.get("vision") is None or S.get("processor") is None:
+        raise ValueError("Local image requests require starting the server with --vision")
+    a, tok = S["args"], S["tok"]
+    text, images = assets.render(prompt(kind, state, question, options, tok.choice_labels))
+    image_processor = getattr(S["processor"], "image_processor", None)
+    factor = getattr(image_processor, "patch_size", 0) * getattr(image_processor, "merge_size", 0)
+    size = getattr(image_processor, "size", None)
+    max_pixels = size.get("longest_edge") if isinstance(size, dict) else getattr(size, "longest_edge", None)
+    # Reject guaranteed-overlong repeated images before allocating their patch tensors.
+    if factor and max_pixels and all(math.ceil(im.width / factor) * math.ceil(im.height / factor)
+                                    * factor * factor <= max_pixels for im in images):
+        minimum_tokens = sum((im.width // factor) * (im.height // factor) for im in images)
+        if minimum_tokens > a.max_len:
+            raise ValueError("Image prompt exceeds --max_len; images and text are never silently truncated")
+    inputs = S["processor"](text=[text], images=images, return_tensors="pt", truncation=False)
+    tokens = int(inputs["input_ids"].shape[-1])
+    if tokens > a.max_len:
+        raise ValueError("Image prompt exceeds --max_len; images and text are never silently truncated")
+    inputs = inputs.to(a.device)
+    h = S["vision"](**inputs).last_hidden_state[0, -1]
+    z = S["head"].logits(h, kind, len(options)) / S["temps"].get(kind, 1.0)
+    return torch.softmax(z, -1).tolist(), tokens
+
+
+@torch.no_grad()
+def _hf_many(items, assets=None):
     """items: ``[(kind, state, question, options)]`` (<= 256 options each) -> ``[(probs, n_tokens)]``."""
     tok, body, head, temps, a = S["tok"], S["body"], S["head"], S["temps"], S["args"]
+    if assets and assets.markers:
+        out, text_items, text_indices = [None] * len(items), [], []
+        for index, item in enumerate(items):
+            if assets.has_images(prompt(*item, tok.choice_labels)):
+                out[index] = _hf_image(*item, assets)
+            else:
+                text_indices.append(index)
+                text_items.append(item)
+        for index, result in zip(text_indices, _hf_many(text_items)):
+            out[index] = result
+        return out
     enc = [encode(tok, {"kind": k, "state": s, "question": q, "options": o}, a.max_len, tok.choice_labels)
            for k, s, q, o in items]
     out = [None] * len(items)
@@ -163,12 +208,13 @@ def permute(dist_many, question, opts, k=4):
     return p
 
 
-def wide_dist(strategy, kind, state, question, opts):
+def wide_dist(strategy, kind, state, question, opts, assets=None):
     """-> ``(probs, n_tokens)`` for any question; ``strategy`` only matters for choices with > 16 options."""
     cnt = [0]
 
     def many(option_lists):
-        r = _hf_many([(kind, state, question, o) for o in option_lists])
+        items = [(kind, state, question, o) for o in option_lists]
+        r = _hf_many(items, assets) if assets and assets.markers else _hf_many(items)
         cnt[0] += sum(n for _, n in r)
         return [p for p, _ in r]
 
@@ -211,10 +257,38 @@ def map_question(q):
     raise ValueError(f"unsupported question type {q['type']}")
 
 
-async def _proxy_dist(kind, state, question, options):
-    r = await S["client"].post("/v1/decide", json={"kind": kind, "state": state, "question": question,
-                                                     "options": options if kind == "choice" else None,
-                                                     "thinking": "off"})
+def _proxy_image_fields(state, question, options, assets):
+    """Native /decide accepts images only in state: label question/criterion images there."""
+    parts = [part if isinstance(part, str) else {"image": part.data_url}
+             for part in assets.parts(_state_text(state))]
+    count = 0
+
+    def reference_images(text, location):
+        nonlocal count
+        result = []
+        for part in assets.parts(text):
+            if isinstance(part, str):
+                result.append(part)
+            else:
+                count += 1
+                label = f"{location} image {count}"
+                result.append(f"[{label} in state]")
+                parts.extend([f"\n[{label}]\n", {"image": part.data_url}])
+        return "".join(result)
+
+    question = reference_images(question, "question")
+    options = [reference_images(option, f"option {index}") for index, option in enumerate(options)]
+    return parts, question, options
+
+
+async def _proxy_dist(kind, state, question, options, assets=None, strategy=None):
+    if assets and assets.markers:
+        state, question, options = _proxy_image_fields(state, question, options, assets)
+    payload = {"kind": kind, "state": state, "question": question,
+               "options": options if kind == "choice" else None, "thinking": "off"}
+    if strategy is not None:
+        payload["strategy"] = strategy
+    r = await S["client"].post("/v1/decide", json=payload)
     if r.status_code != 200:
         raise ValueError(r.text[:500])
     j = r.json()
@@ -229,31 +303,52 @@ def build_app():
 
     @app.post("/v1/systemone")
     async def systemone(req: Request):
-        body = await req.json()
         t0 = time.perf_counter()
         answers, ntok = {}, 0
+        assets = AssetBundle()
         try:
+            original, uploads = await read_request(req)
+            body, assets = await asyncio.to_thread(
+                prepare_assets, original, uploads,
+                enabled=req.headers.get("TypeSafe-Danger-Zone-Images", "").strip().lower() == "true")
+            if "state" not in body or not isinstance(body.get("questions"), dict) or not body["questions"]:
+                raise ValueError("state and a nonempty questions object are required")
+            for q in body["questions"].values():
+                if not isinstance(q, dict) or q.get("type") not in ("noul", "choice", "score"):
+                    raise ValueError("questions must contain noul, choice, or score objects")
+                if q["type"] == "choice" and not isinstance(q.get("criteria"), dict):
+                    raise ValueError("choice criteria must be an object")
+                if q["type"] == "noul" and q.get("criteria") is not None and not isinstance(q["criteria"], dict):
+                    raise ValueError("noul criteria must be an object")
+                if q["type"] == "score" and (not isinstance(q.get("criteria"), list)
+                                             or not 2 <= len(q["criteria"]) <= 256):
+                    raise ValueError("score criteria must contain 2-256 levels")
+            strategy = body.get("strategy") or S["args"].strategy
+            if strategy not in STRATEGIES:
+                raise ValueError(f"strategy must be one of {STRATEGIES}")
             parsed = {qid: map_question(q) for qid, q in body["questions"].items()}
             for kind, _, opts, _ in parsed.values():
                 if kind == "choice" and not 2 <= len(opts) <= 256:
                     return JSONResponse({"error": "choice needs 2-256 options per choice"}, status_code=422)
             res = {}
             if S["args"].proxy:
-                outs = await asyncio.gather(*(_proxy_dist(k, body["state"], qt, o) for k, qt, o, _ in parsed.values()))
+                outs = await asyncio.gather(*(_proxy_dist(k, body["state"], qt, o, assets, strategy)
+                                             for k, qt, o, _ in parsed.values()))
                 res = dict(zip(parsed, outs))
             else:
                 st = _state_text(body["state"])
-                strategy = body.get("strategy") or S["args"].strategy
-                if strategy not in STRATEGIES:
-                    return JSONResponse({"error": f"strategy must be one of {STRATEGIES}"}, status_code=422)
+                if assets.markers and S.get("vision") is None:
+                    raise ValueError("Local image requests require starting the server with --vision")
                 one_pass = strategy == "single"
                 small = [qid for qid, v in parsed.items() if one_pass or not (v[0] == "choice" and len(v[2]) > 16)]
                 async with S["lock"]:
-                    for qid, r in zip(small, _hf_many([(parsed[q][0], st, parsed[q][1], parsed[q][2]) for q in small])):
+                    items = [(parsed[q][0], st, parsed[q][1], parsed[q][2]) for q in small]
+                    outputs = _hf_many(items, assets) if assets.markers else _hf_many(items)
+                    for qid, r in zip(small, outputs):
                         res[qid] = r
                     for qid, (kind, qtext, opts, _) in parsed.items():
                         if qid not in res:
-                            res[qid] = wide_dist(strategy, kind, st, qtext, opts)
+                            res[qid] = wide_dist(strategy, kind, st, qtext, opts, assets)
             for qid, q in body["questions"].items():
                 _, _, _, keys = parsed[qid]
                 p, n = res[qid]
@@ -266,14 +361,23 @@ def build_app():
                 else:
                     pr = dict(zip(keys, map(float, p)))
                     answers[qid] = {"type": "score", "score": sum(i * v for i, v in enumerate(p)), "probabilities": pr}
+        except AssetError as e:
+            return JSONResponse({"error": str(e)}, status_code=e.status_code)
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=422)
+        except torch.OutOfMemoryError:
+            return JSONResponse({"error": "Insufficient inference memory; reduce image count or context"},
+                                status_code=503)
+        finally:
+            for image in assets.markers.values():
+                image.image.close()
         return {"model": S["args"].name, "answers": answers, "usage": {"input_tokens": ntok},
                 "latency_ms": 1000 * (time.perf_counter() - t0)}
 
     @app.get("/health")
     async def health():
-        return {"ok": True, "model": S["args"].name}
+        return {"ok": True, "model": S["args"].name,
+                "images": bool(S["args"].proxy or getattr(S["args"], "vision", False))}
 
     return app
 
