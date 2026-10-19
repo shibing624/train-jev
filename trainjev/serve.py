@@ -17,7 +17,7 @@ Request mapping, identical for every backend and identical to what the model saw
   score  -> 6 levels: kind score with the level legend; other level counts: kind choice over the level texts
 Questions of one request are scored independently (each sees the state and its own question only), batched by length.
 Image assets (TypeSafe base64 JSON or multipart) are supported with ``--vision`` or ``--proxy``.
-The text-only loading path remains the default; image requests require TypeSafe-Danger-Zone-Images: true.
+The text-only loading path remains the default; image requests do not require an extra opt-in header.
 
 Wide choices (17-256 options), ``--strategy`` (the three strategies of JEV-27B-VL's ``serve_decide.py``):
   single      (default, as serve_decide.py on Qwen) one pass: labels A-P (trained head rows), then Q-Z, AA, AB, ...
@@ -36,8 +36,10 @@ import os
 import random
 import time
 import zlib
+from contextlib import ExitStack
 
 import torch
+from PIL import Image
 
 from trainjev.assets import AssetBundle, AssetError, prepare_assets, read_request
 from trainjev.data import encode, micro_batches, prompt
@@ -104,16 +106,38 @@ def _hf_image(kind, state, question, options, assets):
     a, tok = S["args"], S["tok"]
     text, images = assets.render(prompt(kind, state, question, options, tok.choice_labels))
     image_processor = getattr(S["processor"], "image_processor", None)
-    factor = getattr(image_processor, "patch_size", 0) * getattr(image_processor, "merge_size", 0)
+    factor = (getattr(image_processor, "patch_size", 0) or 0) * (getattr(image_processor, "merge_size", 0) or 0)
     size = getattr(image_processor, "size", None)
     max_pixels = size.get("longest_edge") if isinstance(size, dict) else getattr(size, "longest_edge", None)
-    # Reject guaranteed-overlong repeated images before allocating their patch tensors.
-    if factor and max_pixels and all(math.ceil(im.width / factor) * math.ceil(im.height / factor)
-                                    * factor * factor <= max_pixels for im in images):
-        minimum_tokens = sum((im.width // factor) * (im.height // factor) for im in images)
-        if minimum_tokens > a.max_len:
-            raise ValueError("Image prompt exceeds --max_len; images and text are never silently truncated")
-    inputs = S["processor"](text=[text], images=images, return_tensors="pt", truncation=False)
+    with ExitStack() as resources:
+        prepared = []
+        for image in images:
+            aspect = max(image.size) / min(image.size)
+            if factor and min(image.size) < factor and aspect <= 200:
+                scale = factor / min(image.size)
+                image = image.resize((math.ceil(image.width * scale), math.ceil(image.height * scale)),
+                                     Image.Resampling.LANCZOS)
+                resources.callback(image.close)
+            elif factor and aspect > 200:
+                # Pad only inputs outside Qwen's grid/aspect assumptions; never crop content.
+                working = image.copy()
+                resources.callback(working.close)
+                side = max(factor, math.isqrt(int(max_pixels or 16_777_216)))
+                working.thumbnail((side, side), Image.Resampling.LANCZOS)
+                width = max(working.width, factor, math.ceil(working.height / 200))
+                height = max(working.height, factor, math.ceil(working.width / 200))
+                canvas = Image.new("RGB", (width, height), "white")
+                resources.callback(canvas.close)
+                canvas.paste(working, ((width - working.width) // 2, (height - working.height) // 2))
+                image = canvas
+            prepared.append(image)
+        # Reject guaranteed-overlong repeated images before allocating their patch tensors.
+        if factor and max_pixels and all(math.ceil(im.width / factor) * math.ceil(im.height / factor)
+                                        * factor * factor <= max_pixels for im in prepared):
+            minimum_tokens = sum((im.width // factor) * (im.height // factor) for im in prepared)
+            if minimum_tokens > a.max_len:
+                raise ValueError("Image prompt exceeds --max_len; images and text are never silently truncated")
+        inputs = S["processor"](text=[text], images=prepared, return_tensors="pt", truncation=False)
     tokens = int(inputs["input_ids"].shape[-1])
     if tokens > a.max_len:
         raise ValueError("Image prompt exceeds --max_len; images and text are never silently truncated")
@@ -308,9 +332,9 @@ def build_app():
         assets = AssetBundle()
         try:
             original, uploads = await read_request(req)
-            body, assets = await asyncio.to_thread(
-                prepare_assets, original, uploads,
-                enabled=req.headers.get("TypeSafe-Danger-Zone-Images", "").strip().lower() == "true")
+            if original.get("assets") and not S["args"].proxy and S.get("vision") is None:
+                raise ValueError("Local image requests require starting the server with --vision")
+            body, assets = await asyncio.to_thread(prepare_assets, original, uploads)
             if "state" not in body or not isinstance(body.get("questions"), dict) or not body["questions"]:
                 raise ValueError("state and a nonempty questions object are required")
             for q in body["questions"].values():

@@ -92,12 +92,9 @@ def body(color='red'):
             'questions': {'person_present': {'type': 'noul', 'instructions': 'Is the image in door red?'}}}
 
 
-HEADERS = {'TypeSafe-Danger-Zone-Images': 'true'}
-
-
 def test_base64_pixels_reach_the_model_and_change_decision(client):
-    red = client.post('/v1/systemone', json=body('red'), headers=HEADERS)
-    blue = client.post('/v1/systemone', json=body('blue'), headers=HEADERS)
+    red = client.post('/v1/systemone', json=body('red'))
+    blue = client.post('/v1/systemone', json=body('blue'))
     assert red.status_code == blue.status_code == 200
     assert red.json()['answers']['person_present']['noul'] > .99
     assert blue.json()['answers']['person_present']['noul'] < .01
@@ -107,10 +104,10 @@ def test_base64_pixels_reach_the_model_and_change_decision(client):
 
 
 def test_multipart_and_json_are_equivalent(client):
-    expected = client.post('/v1/systemone', json=body(), headers=HEADERS).json()['answers']
+    expected = client.post('/v1/systemone', json=body()).json()['answers']
     request = body()
     request['assets'] = {'uuid-photo-123': {'type': 'image', 'part': 'door-photo'}}
-    response = client.post('/v1/systemone', headers=HEADERS, files=[
+    response = client.post('/v1/systemone', files=[
         ('request', (None, json.dumps(request), 'application/json')),
         ('door-photo', ('door.png', raw_image(), 'image/png')),
     ])
@@ -125,7 +122,7 @@ def test_question_only_images_do_not_leak_into_other_questions(client):
         'image_question': {'type': 'noul', 'instructions': 'Is uuid-photo-123 red?'},
         'text_question': {'type': 'noul', 'instructions': 'Does shared text mention red?'},
     }
-    response = client.post('/v1/systemone', json=request, headers=HEADERS)
+    response = client.post('/v1/systemone', json=request)
     assert response.status_code == 200
     assert response.json()['answers']['image_question']['noul'] > .99
     assert response.json()['answers']['text_question']['noul'] == .5
@@ -141,7 +138,7 @@ def test_state_and_nested_criteria_images_preserve_option_keys(client):
                      'criteria': {'package': {'examples': ['uuid-example-456']}, 'nothing': None}},
         'presence': {'type': 'noul', 'instructions': 'Is door red?'},
     }
-    response = client.post('/v1/systemone', json=request, headers=HEADERS)
+    response = client.post('/v1/systemone', json=request)
     assert response.status_code == 200
     assert set(response.json()['answers']['carrying']['probabilities']) == {'package', 'nothing'}
     assert [len(colors) for _, colors in srv.S['processor'].calls] == [2, 1]
@@ -153,7 +150,7 @@ def test_image_score_maps_to_expected_level_distribution(client, levels):
     request = body()
     request['questions'] = {'rating': {'type': 'score', 'instructions': 'How red is door?',
                                      'criteria': [f'level {i}' for i in range(levels)]}}
-    response = client.post('/v1/systemone', json=request, headers=HEADERS)
+    response = client.post('/v1/systemone', json=request)
     assert response.status_code == 200
     answer = response.json()['answers']['rating']
     assert set(answer['probabilities']) == {str(i) for i in range(levels)}
@@ -167,7 +164,7 @@ def test_wide_image_choices_use_the_existing_strategies(client, strategy):
     request['strategy'] = strategy
     request['questions'] = {'q': {'type': 'choice', 'instructions': 'Pick a level.',
                                  'criteria': {f'option{i}': None for i in range(20)}}}
-    response = client.post('/v1/systemone', json=request, headers=HEADERS)
+    response = client.post('/v1/systemone', json=request)
     assert response.status_code == 200, response.text
     probabilities = response.json()['answers']['q']['probabilities']
     assert len(probabilities) == 20 and sum(probabilities.values()) == pytest.approx(1)
@@ -176,7 +173,7 @@ def test_wide_image_choices_use_the_existing_strategies(client, strategy):
 
 def test_image_context_is_rejected_without_inference_or_truncation(client):
     srv.S['args'].max_len = 10
-    response = client.post('/v1/systemone', json=body(), headers=HEADERS)
+    response = client.post('/v1/systemone', json=body())
     assert response.status_code == 422 and 'never silently truncated' in response.json()['error']
     assert srv.S['vision'].calls == 0
 
@@ -189,7 +186,7 @@ def test_oversized_repeated_images_rejected_before_patch_allocation(client):
     request = body()
     request['state'] = ['uuid-photo-123'] * 15
     request['assets']['uuid-photo-123']['data_base64'] = base64.b64encode(output.getvalue()).decode()
-    response = client.post('/v1/systemone', json=request, headers=HEADERS)
+    response = client.post('/v1/systemone', json=request)
     assert response.status_code == 422
     assert not srv.S['processor'].calls and srv.S['vision'].calls == 0
 
@@ -199,15 +196,17 @@ def test_memory_exhaustion_returns_retryable_error_without_partial_answers(clien
         raise torch.OutOfMemoryError('private backend detail')
 
     monkeypatch.setattr(srv, '_hf_image', oom)
-    response = client.post('/v1/systemone', json=body(), headers=HEADERS)
+    response = client.post('/v1/systemone', json=body())
     assert response.status_code == 503 and 'answers' not in response.json()
     assert 'private' not in response.json()['error']
 
 
-def test_text_only_backend_rejects_images_and_retains_text(client):
+def test_text_only_backend_rejects_images_and_retains_text(client, monkeypatch):
     srv.S['vision'] = None
     srv.S['args'].vision = False
-    response = client.post('/v1/systemone', json=body(), headers=HEADERS)
+    monkeypatch.setattr(assets_module, '_prepare_image',
+                        lambda *a, **k: pytest.fail('text-only serving must not decode image assets'))
+    response = client.post('/v1/systemone', json=body())
     assert response.status_code == 422 and '--vision' in response.json()['error']
     request = {'state': 'plain state', 'questions': {'q': {'type': 'noul', 'instructions': 'plain question'}}}
     response = client.post('/v1/systemone', json=request)
@@ -219,12 +218,11 @@ def test_bad_images_fail_whole_request_before_model(client):
     request = body()
     request['assets']['uuid-bad-456'] = {'format': 'png', 'data_base64': 'not base64'}
     request['questions']['other'] = {'type': 'noul', 'instructions': 'Is uuid-bad-456 blue?'}
-    response = client.post('/v1/systemone', json=request, headers=HEADERS)
+    response = client.post('/v1/systemone', json=request)
     assert response.status_code == 400 and 'answers' not in response.json()
     assert srv.S['vision'].calls == 0
-    assert client.post('/v1/systemone', json=body()).status_code == 400
     request['assets']['uuid-bad-456'] = {'url': 'http://127.0.0.1/private'}
-    assert client.post('/v1/systemone', json=request, headers=HEADERS).status_code == 400
+    assert client.post('/v1/systemone', json=request).status_code == 400
 
 
 @pytest.mark.parametrize('payload', [{}, {'state': 'x', 'questions': {}}, {'state': 'x', 'questions': []},
@@ -261,7 +259,7 @@ def test_proxy_keeps_all_question_and_criterion_images(client):
               'criteria': {'package': 'uuid-example-456', 'nothing': None}},
         'plain': {'type': 'noul', 'instructions': 'Is door red?'},
     }
-    response = client.post('/v1/systemone', json=request, headers=HEADERS)
+    response = client.post('/v1/systemone', json=request)
     assert response.status_code == 200
     assert [sum(isinstance(part, dict) for part in call['state']) for call in calls] == [3, 1]
     assert all(call['strategy'] == 'single' for call in calls)
@@ -289,6 +287,7 @@ def test_image_example_uses_compatible_request(client, tmp_path, monkeypatch, tr
 
     def send(url, **kwargs):
         assert url == 'http://127.0.0.1:8020/v1/systemone'
+        assert 'headers' not in kwargs
         kwargs.pop('timeout')
         return client.post('/v1/systemone', **kwargs)
 
@@ -296,3 +295,11 @@ def test_image_example_uses_compatible_request(client, tmp_path, monkeypatch, tr
     result = main(['--image', str(path), '--transport', transport])
     assert result['person_present']['type'] == 'noul'
     assert set(result['carrying']['probabilities']) == {'package', 'bag', 'nothing'}
+
+
+@pytest.mark.parametrize('value', ['true', 'false'])
+def test_legacy_image_header_is_ignored(client, value):
+    expected = client.post('/v1/systemone', json=body()).json()['answers']
+    response = client.post('/v1/systemone', json=body(), headers={'TypeSafe-Danger-Zone-Images': value})
+    assert response.status_code == 200
+    assert response.json()['answers'] == expected

@@ -18,17 +18,16 @@ VISION_TOKEN = "<|vision_start|><|image_pad|><|vision_end|>"
 MARKER_PREFIX = "\ue000trainjev_image_"
 MAX_BODY_BYTES = 32 * 1024 * 1024
 MAX_IMAGE_BYTES = 16 * 1024 * 1024
-MAX_PROCESSED_BYTES = 32 * 1024 * 1024
-MAX_EXPANDED_BYTES = 32 * 1024 * 1024
+MAX_PROCESSED_BYTES = 256 * 1024 * 1024
+MAX_EXPANDED_BYTES = 256 * 1024 * 1024
+MAX_DECODED_PIXELS = 89_478_485
 MAX_IMAGES = 16
 MAX_OCCURRENCES = 64
 MAX_REF_BYTES = 1024
 MAX_TOTAL_REF_BYTES = 65536
 MAX_DEPTH = 64
-MIN_DIMENSION = 280
-MAX_DIMENSION = 1568
-_IMAGE_CONTENT_TYPES = {"image/png", "image/jpeg", "image/jpg", "application/octet-stream", ""}
-_FORMATS = {"png": "PNG", "jpg": "JPEG", "jpeg": "JPEG"}
+_FORMATS = {"png": "PNG", "jpg": "JPEG", "jpeg": "JPEG", "webp": "WEBP", "gif": "GIF", "bmp": "BMP",
+            "tif": "TIFF", "tiff": "TIFF", "ico": "ICO", "avif": "AVIF", "mpo": "JPEG"}
 
 
 class AssetError(ValueError):
@@ -162,7 +161,7 @@ def _image_content_type(content_type: str | None) -> str:
     if content_type is not None and not isinstance(content_type, str):
         raise AssetError("Invalid image part content type")
     media = (content_type or "").split(";", 1)[0].strip().lower()
-    if media not in _IMAGE_CONTENT_TYPES:
+    if media not in {"application/octet-stream", ""} and not media.startswith("image/"):
         raise AssetError("Unsupported image part content type")
     return media
 
@@ -285,8 +284,6 @@ def _check_png(raw: bytes, dimensions: tuple[int, int]) -> None:
         end = position + size + 12
         if end > len(raw):
             break
-        if kind == b"acTL":
-            raise AssetError("Animated images are not supported")
         if kind == b"IDAT":
             decoded = decoder.decompress(raw[position + 8:end - 4], remaining + 1)
             remaining -= len(decoded)
@@ -307,21 +304,20 @@ def _prepare_image(raw: bytes, declared_format: str | None) -> AssetImage:
         with warnings.catch_warnings():
             warnings.simplefilter("error", Image.DecompressionBombWarning)
             with Image.open(io.BytesIO(raw)) as source:
-                actual = source.format
-                if actual not in {"PNG", "JPEG"}:
-                    raise AssetError("Only PNG and JPEG images are supported")
+                actual = "JPEG" if source.format == "MPO" else source.format
+                if actual not in set(_FORMATS.values()):
+                    raise AssetError("Unsupported raster image format; SVG, PDF and PostScript are not supported")
                 if declared_format is not None and _FORMATS[declared_format] != actual:
                     raise AssetError("Declared image format does not match image data")
-                if any(side < MIN_DIMENSION or side > MAX_DIMENSION for side in source.size):
-                    raise AssetError("Image width and height must each be 280 to 1568 pixels")
-                if getattr(source, "is_animated", False) or getattr(source, "n_frames", 1) != 1:
-                    raise AssetError("Animated images are not supported")
+                if source.width * source.height > MAX_DECODED_PIXELS:
+                    raise AssetError("Decoded image exceeds the pixel memory budget", 413)
                 if actual == "PNG":
                     _check_png(raw, source.size)
-                elif b"\xff\xd9" not in raw:
+                elif actual == "JPEG" and b"\xff\xd9" not in raw:
                     raise AssetError("Truncated or malformed JPEG image")
                 source.verify()
             with Image.open(io.BytesIO(raw)) as source:
+                source.seek(0)
                 source.load()
                 image = ImageOps.exif_transpose(source).convert("RGB")
             encoded = io.BytesIO()
@@ -334,11 +330,13 @@ def _prepare_image(raw: bytes, declared_format: str | None) -> AssetImage:
         return AssetImage(clean, "data:image/png;base64," + base64.b64encode(processed).decode("ascii"), len(processed))
     except AssetError:
         raise
+    except (Image.DecompressionBombError, Image.DecompressionBombWarning):
+        raise AssetError("Decoded image exceeds the pixel memory budget", 413) from None
     except Exception:
         raise AssetError("Invalid, truncated, or unsupported image data") from None
 
 
-def prepare_assets(body: dict, uploads: dict[str, tuple[bytes, str | None]], enabled: bool) -> tuple[dict, AssetBundle]:
+def prepare_assets(body: dict, uploads: dict[str, tuple[bytes, str | None]]) -> tuple[dict, AssetBundle]:
     """Replace references in state/question values only, preserving caller data and keys."""
     if not isinstance(body, dict) or not isinstance(uploads, dict):
         raise AssetError("Request body and uploads must be objects")
@@ -350,8 +348,6 @@ def prepare_assets(body: dict, uploads: dict[str, tuple[bytes, str | None]], ena
         if uploads:
             raise AssetError("Every image upload must be referenced by one asset")
         return body, AssetBundle()
-    if not enabled:
-        raise AssetError("Image assets require TypeSafe-Danger-Zone-Images: true")
     if len(assets) > MAX_IMAGES:
         raise AssetError("At most 16 image assets are supported", 413)
     _validate_json(body, reject_markers=True)
@@ -369,8 +365,8 @@ def prepare_assets(body: dict, uploads: dict[str, tuple[bytes, str | None]], ena
         if "type" in asset and asset["type"] != "image":
             raise AssetError("Asset type must be image")
         fmt = asset.get("format")
-        if "format" in asset and (not isinstance(fmt, str) or fmt not in _FORMATS):
-            raise AssetError("Image format must be png, jpg, or jpeg")
+        if "format" in asset and (not isinstance(fmt, str) or fmt.lower() not in _FORMATS):
+            raise AssetError("Image format must name a supported raster image format")
         if "part" in asset:
             part = asset["part"]
             if not isinstance(part, str) or not part.strip() or part == "request":
@@ -380,8 +376,8 @@ def prepare_assets(body: dict, uploads: dict[str, tuple[bytes, str | None]], ena
             if part in used_parts:
                 raise AssetError("Each upload part must belong to exactly one asset")
             used_parts.add(part)
-        elif "data_base64" not in asset or fmt is None:
-            raise AssetError("Image assets require part or data_base64 with format")
+        elif "data_base64" not in asset:
+            raise AssetError("Image assets require part or data_base64")
         references[ref] = f"{MARKER_PREFIX}{index}\ue001"
     if set(uploads) != used_parts:
         raise AssetError("Every image upload must be referenced by one asset")
@@ -426,7 +422,7 @@ def prepare_assets(body: dict, uploads: dict[str, tuple[bytes, str | None]], ena
 
     bundle = AssetBundle()
     try:
-        processed_bytes = 0
+        processed_bytes, decoded_pixels = 0, 0
         for ref, asset in assets.items():
             if "part" in asset:
                 upload = uploads[asset["part"]]
@@ -436,11 +432,15 @@ def prepare_assets(body: dict, uploads: dict[str, tuple[bytes, str | None]], ena
                 _image_content_type(content_type)
             else:
                 raw = _decode_base64(asset["data_base64"])
-            image = _prepare_image(raw, asset.get("format"))
+            fmt = asset.get("format")
+            image = _prepare_image(raw, fmt.lower() if isinstance(fmt, str) else None)
             bundle.markers[references[ref]] = image
             processed_bytes += image.processed_bytes
+            decoded_pixels += image.image.width * image.image.height
+            if decoded_pixels > MAX_DECODED_PIXELS:
+                raise AssetError("Image assets exceed the decoded pixel memory budget", 413)
             if processed_bytes > MAX_PROCESSED_BYTES:
-                raise AssetError("Processed image assets exceed 32 MiB", 413)
+                raise AssetError("Processed image assets exceed 256 MiB", 413)
         rendered_fields = {key: normalized[key] for key in ("state", "questions") if key in normalized}
         try:
             text = json.dumps(rendered_fields, ensure_ascii=False, allow_nan=False)
@@ -450,7 +450,7 @@ def prepare_assets(body: dict, uploads: dict[str, tuple[bytes, str | None]], ena
         expanded_bytes = len(rendered.encode("utf-8"))
         expanded_bytes += sum(part.processed_bytes for part in bundle.parts(text) if isinstance(part, AssetImage))
         if expanded_bytes > MAX_EXPANDED_BYTES:
-            raise AssetError("Expanded image request exceeds 32 MiB", 413)
+            raise AssetError("Expanded image request exceeds 256 MiB", 413)
         return normalized, bundle
     except BaseException:
         bundle.close()

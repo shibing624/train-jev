@@ -69,8 +69,9 @@ class Processor:
             token_ids += [121] + [120] * count + [122]
         token_ids.append(2)
         ids = torch.tensor([token_ids])
-        return BatchFeature(dict(pixels, input_ids=ids, attention_mask=torch.ones_like(ids),
-                                 mm_token_type_ids=ids.eq(120).long()))
+        self.last_inputs = BatchFeature(dict(pixels, input_ids=ids, attention_mask=torch.ones_like(ids),
+                                            mm_token_type_ids=ids.eq(120).long()))
+        return self.last_inputs
 
 
 def test_vision_loader_merges_adapter_and_shares_the_real_text_body(tmp_path, monkeypatch):
@@ -105,7 +106,8 @@ def test_vision_loader_merges_adapter_and_shares_the_real_text_body(tmp_path, mo
     assert not vl_body.training
 
 
-def test_pixels_reach_real_qwen_tower_and_calibrated_head(monkeypatch):
+@pytest.mark.parametrize("size", [(280, 280), (1, 1), (16, 16), (2048, 64), (4096, 1)])
+def test_pixels_reach_real_qwen_tower_and_calibrated_head(monkeypatch, size):
     model = tiny_model()
     processor = Processor()
     processor.tokenizer.choice_labels, _ = modeling.choice_labels(processor.tokenizer)
@@ -118,16 +120,15 @@ def test_pixels_reach_real_qwen_tower_and_calibrated_head(monkeypatch):
     results = []
     for color in ["red", "blue"]:
         output = io.BytesIO()
-        Image.new("RGB", (280, 280), color).save(output, format="PNG")
+        Image.new("RGB", size, color).save(output, format="PNG")
         normalized, assets = prepare_assets(
             {"state": {"door": "photo-ref"}, "assets": {"photo-ref": {
                 "format": "png", "data_base64": base64.b64encode(output.getvalue()).decode()}},
-             "questions": {"q": {"type": "noul", "instructions": "Is door red?"}}}, {}, enabled=True)
+             "questions": {"q": {"type": "noul", "instructions": "Is door red?"}}}, {})
         try:
             state = serve._state_text(normalized["state"])
             probabilities, count = serve._hf_image("noul", state, "Is door red?", ["false", "true"], assets)
-            text, images = assets.render(serve.prompt("noul", state, "Is door red?", ["false", "true"]))
-            inputs = processor(text=[text], images=images, return_tensors="pt", truncation=False)
+            inputs = processor.last_inputs
             with torch.inference_mode():
                 h = model.model(**inputs).last_hidden_state[0, -1]
                 expected = torch.softmax(head.logits(h, "noul", 2) / 2.0, -1).tolist()

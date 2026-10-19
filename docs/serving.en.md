@@ -86,13 +86,12 @@ Start local image serving with `--vision`. Without it the original text-only loa
 
 ## Image input: TypeSafe assets
 
-Following the [TypeSafe Images contract](https://docs.typesafe.ai/images), references can appear in string values of `state`, `instructions` and `criteria`. Every image request needs `TypeSafe-Danger-Zone-Images: true`. The existing `noul`, `choice` and `score` types work with images; **`box` is not implemented**.
+Using the [TypeSafe Images](https://docs.typesafe.ai/images) assets format, references can appear in string values of `state`, `instructions` and `criteria`. No experimental header is required locally; enable `--vision` at startup. The existing `noul`, `choice` and `score` types work with images; **`box` is not implemented**.
 
 Prefer multipart, which avoids base64's roughly 33% overhead. Put JSON first in a part named `request`, and each file in its own named part:
 
 ```bash
 curl http://localhost:8020/v1/systemone \
-  -H 'TypeSafe-Danger-Zone-Images: true' \
   -F 'request={
     "model": "jev-latest",
     "state": {"door": "a3f1c2e8-door"},
@@ -106,7 +105,7 @@ curl http://localhost:8020/v1/systemone \
   -F 'door-photo=@door-camera.jpg;type=image/jpeg'
 ```
 
-Or use JSON/base64. Resize files on the client to the valid dimensions; the service does not silently resize invalid dimensions:
+Or use JSON/base64. No fixed client-side image dimensions are required:
 
 ```python
 import base64
@@ -117,12 +116,10 @@ import httpx
 photo_key = str(uuid.uuid4())
 photo = {
     "type": "image",
-    "format": "jpg",  # png / jpg / jpeg; must agree with file content
     "data_base64": base64.b64encode(Path("door-camera.jpg").read_bytes()).decode("ascii"),
 }
 response = httpx.post(
     "http://localhost:8020/v1/systemone",
-    headers={"TypeSafe-Danger-Zone-Images": "true"},
     json={
         "model": "jev-latest",
         "state": {"door": photo_key},
@@ -139,11 +136,12 @@ print(response.json()["answers"])
 
 - Replace string values only, not question IDs, Choice option names or other object keys. Whole values match first; longer strings match left to right. Prefer UUIDs to avoid accidental substring matches.
 - Nested/multiple images and question-local instruction/criterion examples are supported. A question never sees another question's examples. Each repeated use expands the image again.
-- Every asset must be referenced. `type` is optional. Base64 must be standard, padded, without whitespace or a `data:` prefix, with a matching `format`. Multipart may omit format; part wins when both forms are given.
-- Still PNG/JPEG only, **280–1568 pixels on each side**, at most 16 MiB per file. Corrupt, truncated, animated, mismatched or invalid-dimension images fail the whole request, without partial answers.
-- Request body, all processed distinct images and the expanded request each have a 32 MiB limit. This server additionally allows at most 16 distinct assets and 64 expanded references; size/count excesses return 413.
-- Images are EXIF-oriented, converted to RGB, stripped of metadata and passed to the real vision encoder. Image prompts exceeding `--max_len` return 422 without truncation; legacy text-only truncation is unchanged.
-- Bad images/references/header/JSON return 400; invalid questions or a text-only backend return 422; unsupported media/encoding returns 415. Only uncompressed JSON/multipart is supported here, not the entire official compression/SDK feature set.
+- Every asset must be referenced. `type` is optional. Base64 must be standard and padded, without whitespace or a `data:` prefix. `format` is optional and inferred from content; when supplied it must match. Part wins when both forms are given.
+- PNG, JPEG, WebP, BMP, TIFF, GIF, ICO and AVIF are supported subject to Pillow codec availability. GIF, multi-page TIFF and APNG use frame 0 as a still image. SVG, PDF, PostScript and video are not supported by this endpoint.
+- The 280–1568 per-side constraint is removed. Qwen's processor resizes ordinary images according to its pixel/grid settings; very small images are enlarged proportionally, and extreme aspect ratios are reduced and padded without cropping. Images are EXIF-oriented, converted to RGB and stripped of metadata before vision encoding.
+- Resource guards remain: 16 MiB per file, 32 MiB HTTP body, 256 MiB for processed images and expanded content, about 89.5 MP total decoded pixels, 16 distinct assets and 64 references. Pillow decompression-bomb checks remain; resource excesses return 413. These are safety budgets, not TypeSafe's fixed edge dimensions.
+- Image prompts exceeding `--max_len` return 422 without silent truncation; legacy text-only truncation is unchanged.
+- Bad images/references/JSON return 400; invalid questions or a text-only backend return 422; unsupported media/encoding returns 415. Only uncompressed JSON/multipart is supported here.
 - Inference memory exhaustion returns 503 without partial answers; reduce image count or context before retrying. Guaranteed-overlong repeated images are rejected before allocating patch tensors.
 - Assets do not accept URLs or server-local paths. No automatic URL fetches or arbitrary file reads. `--proxy` forwards validated images as data URLs to the configured `/v1/decide`; question/criterion images are labeled in that question's upstream state. The legacy proxy inline-image state format still works.
 

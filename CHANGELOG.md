@@ -4,10 +4,11 @@
 
 #### serving
 
-- `/v1/systemone` 新增 TypeSafe 风格图片 assets：JSON/base64 与 multipart，引用支持 state / 单题 instructions / criteria，保留对象键与题目隔离；需要 `TypeSafe-Danger-Zone-Images: true`。
+- `/v1/systemone` 新增 TypeSafe 风格图片 assets：JSON/base64 与 multipart，引用支持 state / 单题 instructions / criteria，保留对象键与题目隔离；本地请求不需要额外实验 header。
 - 新增 `--vision` 完整 VL 加载路径，与纯文本共享已合并 LoRA 的语言模型及 FP32 head；三种题型和原有宽选项策略均可读图，超长图片 prompt 拒绝而不截断。纯文本默认加载/读法保持不变；proxy 转发图片保留所有位置的引用。
 - 补齐图片/JSON/上传体积及格式校验、CPU 路由与像素影响测试、中英接口示例和 multipart 依赖；暂不支持 Box、URL assets 或压缩请求，不以接口支持声称视觉准确率提升。
 - 增加 `VISION=1` 启动方式和 `examples/image_decisions.py`；以小型随机 Qwen VL 模型验证真实视觉编码器、图像处理器、LoRA 加载及校准读出。CI 使用 CPU torchvision，`cuda:0` 保持 bf16 推理精度。
+- 取消固定的 280–1568 边长限制，采用 Qwen 图像处理器缩放；支持常见光栅格式，动图/多页图取第 0 帧。保留请求体积、解码像素与上下文资源保护。
 
 #### documentation and data
 

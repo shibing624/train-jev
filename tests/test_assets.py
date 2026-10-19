@@ -56,13 +56,13 @@ def request_body(raw, state="<photo>", **kwargs):
     }
 
 
-def prepare(body, uploads=None, enabled=True):
-    return prepare_assets(body, uploads or {}, enabled=enabled)
+def prepare(body, uploads=None):
+    return prepare_assets(body, uploads or {})
 
 
-def expect_error(body, uploads=None, status=400, enabled=True):
+def expect_error(body, uploads=None, status=400):
     with pytest.raises(AssetError) as error:
-        prepare(body, uploads, enabled)
+        prepare(body, uploads)
     assert error.value.status_code == status
     assert error.value.message == str(error.value)
     return str(error.value)
@@ -120,7 +120,7 @@ def test_rgb_lossless_png_and_marker_bundle(png, jpeg, fmt):
 
 def test_empty_assets_preserve_identity_and_no_header():
     body = {"state": ["text", {"nested": None}], "questions": {}}
-    normalized, bundle = prepare(body, enabled=False)
+    normalized, bundle = prepare(body)
     assert normalized is body
     assert bundle.markers == {}
     assert bundle.parts("text") == ["text"]
@@ -129,9 +129,9 @@ def test_empty_assets_preserve_identity_and_no_header():
     expect_error(body, {"dangling": (b"bytes", "image/png")})
 
 
-def test_header_required_and_optional_type(png):
+def test_optional_type_and_auto_format(png):
     body = request_body(png)
-    expect_error(body, enabled=False)
+    del body["assets"]["<photo>"]["format"]
     prepare(body)
     body["assets"]["<photo>"]["type"] = "image"
     prepare(body)
@@ -147,11 +147,35 @@ def test_format_mismatch(fmt, raw_fmt):
 
 
 @pytest.mark.parametrize("fmt", ["GIF", "WEBP", "BMP", "TIFF"])
-def test_unsupported_actual_format(fmt):
-    expect_error(request_body(image_bytes(fmt)))
+def test_common_raster_formats_are_accepted(fmt):
+    body = request_body(image_bytes(fmt))
+    del body["assets"]["<photo>"]["format"]
+    _, bundle = prepare(body)
+    assert next(iter(bundle.markers.values())).image.mode == "RGB"
+    bundle.close()
 
 
-@pytest.mark.parametrize("value", ["", "PNG", "gif", None, 3, [], {}])
+@pytest.mark.parametrize("fmt", ["GIF", "TIFF"])
+def test_multiframe_images_use_first_frame(fmt):
+    first = Image.new("RGB", (64, 64), "red")
+    second = Image.new("RGB", (64, 64), "blue")
+    output = io.BytesIO()
+    first.save(output, format=fmt, save_all=True, append_images=[second])
+    body = request_body(output.getvalue())
+    del body["assets"]["<photo>"]["format"]
+    _, bundle = prepare(body)
+    assert next(iter(bundle.markers.values())).image.getpixel((0, 0)) == (255, 0, 0)
+    bundle.close()
+
+
+def test_declared_format_is_case_insensitive(png):
+    body = request_body(png)
+    body["assets"]["<photo>"]["format"] = "PNG"
+    _, bundle = prepare(body)
+    bundle.close()
+
+
+@pytest.mark.parametrize("value", ["", "svg", "pdf", None, 3, [], {}])
 def test_unsupported_declared_format(png, value):
     body = request_body(png)
     body["assets"]["<photo>"]["format"] = value
@@ -183,7 +207,7 @@ def test_exif_transpose_and_metadata_stripping():
 
 
 @pytest.mark.parametrize("single_frame", [False, True])
-def test_apng_rejected(single_frame):
+def test_apng_uses_first_frame(single_frame):
     first = Image.new("RGB", (280, 280), "red")
     second = Image.new("RGB", (280, 280), "blue")
     out = io.BytesIO()
@@ -199,7 +223,9 @@ def test_apng_rejected(single_frame):
         raw = raw[:33] + animation + raw[33:]
     with Image.open(io.BytesIO(raw)) as decoded:
         assert decoded.n_frames == (1 if single_frame else 2)
-    assert "Animated" in expect_error(request_body(raw))
+    _, bundle = prepare(request_body(raw))
+    assert next(iter(bundle.markers.values())).image.getpixel((0, 0)) == (255, 0, 0)
+    bundle.close()
 
 
 @pytest.mark.parametrize("fmt", ["PNG", "JPEG"])
@@ -246,25 +272,35 @@ def test_invalid_base64_never_exposes_data(png, value):
         assert value not in message
 
 
-@pytest.mark.parametrize("size,valid", [((279, 280), False), ((280, 279), False), ((1569, 280), False),
-                                       ((280, 1569), False), ((280, 1568), True), ((1568, 1568), True)])
-def test_dimensions(size, valid):
+@pytest.mark.parametrize("size", [(1, 1), (16, 16), (279, 280), (280, 279), (1569, 280),
+                                  (280, 1569), (280, 1568), (1568, 1568), (2048, 1024)])
+def test_dimensions_have_no_fixed_api_range(size):
     body = request_body(image_bytes(size=size))
-    if valid:
-        _, bundle = prepare(body)
-        assert next(iter(bundle.markers.values())).image.size == size
-    else:
-        expect_error(body)
+    _, bundle = prepare(body)
+    assert next(iter(bundle.markers.values())).image.size == size
+    bundle.close()
 
 
-def test_dimensions_checked_before_pixel_load(monkeypatch):
+def test_pixel_memory_budget_checked_before_pixel_load(monkeypatch):
     raw = image_bytes(size=(279, 280))
+    monkeypatch.setattr(assets_module, "MAX_DECODED_PIXELS", 279 * 280 - 1)
 
     def forbidden(*args, **kwargs):
-        pytest.fail("invalid dimensions must be rejected before loading pixels")
+        pytest.fail("pixel memory overflow must be rejected before loading pixels")
 
     monkeypatch.setattr(Image.Image, "load", forbidden)
-    expect_error(request_body(raw))
+    expect_error(request_body(raw), status=413)
+
+
+def test_total_decoded_pixels_are_bounded(png, monkeypatch):
+    monkeypatch.setattr(assets_module, "MAX_DECODED_PIXELS", 280 * 280 + 1)
+    body = request_body(png, state=["a", "b"], assets={"a": image_asset(png), "b": image_asset(png)})
+    expect_error(body, status=413)
+
+
+def test_pillow_decompression_guard_is_kept(png, monkeypatch):
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 100)
+    expect_error(request_body(png), status=413)
 
 
 @pytest.mark.parametrize("ref", ["", " ", "\t\n", "x" * 1025, "界" * 342])
@@ -381,7 +417,7 @@ def test_missing_shared_dangling_reserved_and_invalid_uploads(png):
     expect_error(body, {"a": (png, "image/png")})
     del body["assets"]["two"]
     expect_error(body, {"a": (png, "image/png"), "b": (png, None)})
-    expect_error(body, {"a": (png, "image/gif")})
+    expect_error(body, {"a": (png, "text/plain")})
     expect_error(body, {"a": png})
     expect_error(body, {"a": ("not bytes", None)})
     body["assets"]["one"]["part"] = "request"
@@ -480,8 +516,7 @@ def client():
     async def endpoint(req: Request):
         try:
             body, uploads = await read_request(req)
-            normalized, bundle = prepare_assets(body, uploads,
-                                                enabled=req.headers.get("TypeSafe-Danger-Zone-Images") == "true")
+            normalized, bundle = prepare_assets(body, uploads)
             text = json.dumps({key: normalized[key] for key in ("state", "questions") if key in normalized},
                               ensure_ascii=False)
             rendered, images = bundle.render(text)
@@ -495,12 +530,12 @@ def client():
 
 
 def test_real_json_endpoint(client, png):
-    response = client.post("/", json=request_body(png), headers={"TypeSafe-Danger-Zone-Images": "true"})
+    response = client.post("/", json=request_body(png))
     assert response.status_code == 200
     assert response.json()["images"] == 1
     assert response.json()["image_sizes"] == [[280, 280]]
     assert VISION_TOKEN in response.json()["rendered"]
-    assert client.post("/", json=request_body(png)).status_code == 400
+    assert client.post("/", json=request_body(png)).status_code == 200
     assert client.post("/", json={"state": "plain"}).status_code == 200
 
 
@@ -534,7 +569,7 @@ def test_real_multipart_endpoint(client, png, jpeg, json_as_file):
             "questions": {"q": {"type": "noul", "instructions": "compare one and two"}}}
     files = [("request", ("request.json" if json_as_file else None, json.dumps(body), "application/json")),
              ("p1", ("one.png", png, "image/png")), ("p2", ("two.jpg", jpeg, "image/jpeg"))]
-    response = client.post("/", files=files, headers={"TypeSafe-Danger-Zone-Images": "true"})
+    response = client.post("/", files=files)
     assert response.status_code == 200, response.text
     assert response.json()["images"] == 5
     assert response.json()["upload_names"] == ["p1", "p2"]
@@ -552,7 +587,7 @@ def test_real_multipart_endpoint(client, png, jpeg, json_as_file):
     [("request", (None, b'{"x":"\xff"}', "application/json"))],
 ])
 def test_bad_multipart_parts(client, parts):
-    response = client.post("/", files=parts, headers={"TypeSafe-Danger-Zone-Images": "true"})
+    response = client.post("/", files=parts)
     assert response.status_code == 400
 
 
@@ -588,7 +623,7 @@ def test_all_upload_files_closed(client, png, monkeypatch, failure):
     body = {"state": "ref", "assets": {"ref": {"part": "p"}}}
     request_json = "{bad" if failure == "json" else json.dumps(body)
     parts = [("request", ("request.json", request_json, "application/json")),
-             ("p", ("p.png", png, "image/gif" if failure == "type" else "image/png"))]
+             ("p", ("p.png", png, "text/plain" if failure == "type" else "image/png"))]
     if failure == "duplicate":
         parts.append(("p", ("duplicate.png", png, "image/png")))
     if failure == "incomplete":
@@ -597,7 +632,7 @@ def test_all_upload_files_closed(client, png, monkeypatch, failure):
                b'name="p"; filename="p.png"\r\n\r\n' + png)
         response = client.post("/", content=raw, headers={"content-type": "multipart/form-data; boundary=abc"})
     else:
-        response = client.post("/", files=parts, headers={"TypeSafe-Danger-Zone-Images": "true"})
+        response = client.post("/", files=parts)
     assert response.status_code == (200 if failure == "none" else 400)
     assert len(closed) == (3 if failure == "duplicate" else 2)
     assert all(upload.file.closed for upload in closed)

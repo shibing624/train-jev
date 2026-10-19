@@ -84,13 +84,12 @@ VISION=1 bash scripts/run_serve.sh
 
 ## 图片输入：TypeSafe assets
 
-对照 [TypeSafe Images 接口](https://docs.typesafe.ai/images)，支持 `state`、`instructions`、`criteria` 的字符串值内引用图片。每个请求必须带 `TypeSafe-Danger-Zone-Images: true`。支持现有 `noul` / `choice` / `score`，**不支持 `box` 定位题**。
+采用 [TypeSafe Images 接口](https://docs.typesafe.ai/images) 的 assets 格式，支持 `state`、`instructions`、`criteria` 的字符串值内引用图片。本地服务不要求额外实验 header；启动时启用 `--vision` 即可。支持现有 `noul` / `choice` / `score`，**不支持 `box` 定位题**。
 
 推荐 multipart：无需 base64 的约 33% 体积膨胀。JSON 必须是第一部分，名字 `request`；图片用不同的文件 part：
 
 ```bash
 curl http://localhost:8020/v1/systemone \
-  -H 'TypeSafe-Danger-Zone-Images: true' \
   -F 'request={
     "model": "jev-latest",
     "state": {"door": "a3f1c2e8-door"},
@@ -104,7 +103,7 @@ curl http://localhost:8020/v1/systemone \
   -F 'door-photo=@door-camera.jpg;type=image/jpeg'
 ```
 
-不方便 multipart 时用 JSON/base64；文件事先缩放到下面的范围，服务不会为你偷偷缩放到合法尺寸：
+不方便 multipart 时用 JSON/base64。无需把图片预先缩放到固定尺寸：
 
 ```python
 import base64
@@ -115,12 +114,10 @@ import httpx
 photo_key = str(uuid.uuid4())
 photo = {
     "type": "image",
-    "format": "jpg",  # png / jpg / jpeg，必须与文件内容一致
     "data_base64": base64.b64encode(Path("door-camera.jpg").read_bytes()).decode("ascii"),
 }
 response = httpx.post(
     "http://localhost:8020/v1/systemone",
-    headers={"TypeSafe-Danger-Zone-Images": "true"},
     json={
         "model": "jev-latest",
         "state": {"door": photo_key},
@@ -137,11 +134,12 @@ print(response.json()["answers"])
 
 - 只替换 `state` / `instructions` / `criteria` 的字符串值，不替换 question ID 或 Choice 选项名等对象键。整值优先，长字符串从左到右匹配；引用可在句中出现，推荐 UUID，避免短词误匹配。
 - 可以嵌套多图，或把例图放进单题 instructions / criteria。该题只看到自己的例图，其他题不会看到它；同一个引用每用一次都展开一次。
-- 每个 asset 必须被上述字段引用。`type` 可省略；`data_base64` 必须是标准带 padding 的 base64，不带 `data:` 前缀或空白；`format` 必填。multipart 可省略 format，同时有 part 和 base64 时 part 优先。
-- PNG / JPEG 静态图，**每边 280–1568 像素**，每文件不超过 16 MiB。拒绝坏图、截断图、动图、格式不符或非法尺寸，整请求失败，不返回部分答案。
-- HTTP 请求体上限 32 MiB（含 base64 / multipart），处理后所有独立图片及按每次引用展开后的请求各上限 32 MiB。本服务另设最多 16 个独立 asset、64 次引用展开；超限返回 413。
-- EXIF 方向校正、转 RGB 和去元数据后送入真实视觉编码器。图片 prompt 超过 `--max_len` 返回 422，不截断图片或其文字。旧纯文本的中间截断行为不变。
-- 非法图片/引用/header/JSON 返回 400，非法题型/选项或未启用视觉返回 422，不支持的 Content-Type / Content-Encoding 返回 415。本地目前只接受未压缩 JSON 或 multipart，不宣称支持官方全部压缩/SDK特性。
+- 每个 asset 必须被上述字段引用。`type` 可省略；`data_base64` 使用标准带 padding 的 base64，不带 `data:` 前缀或空白；`format` 可省略，由文件内容自动识别，提供时须与内容一致。同时有 part 和 base64 时 part 优先。
+- 支持 PNG、JPEG、WebP、BMP、TIFF、GIF、ICO、AVIF（具体解码能力取决于 Pillow）。GIF、多页 TIFF 和 APNG 取第 0 帧，作为静态图片；SVG、PDF、PostScript 和视频不在此接口范围内。
+- 不再限制每边必须是 280–1568 像素。普通图片由 Qwen 图像处理器按模型的 pixel/grid 配置缩放；极小图片等比放大，超长宽比图片缩小并补边，不裁掉内容。EXIF 方向校正、转 RGB 和去元数据后送入视觉编码器。
+- 保留资源保护：每文件 16 MiB、HTTP 请求体 32 MiB；处理后图片及展开请求各最多 256 MiB，总解码像素约 89.5 MP，最多 16 个独立 asset、64 次引用。保留 Pillow 解压炸弹检查，超出资源预算返回 413；这些是安全上限，不是 TypeSafe 的固定边长要求。
+- 图片 prompt 超过 `--max_len` 返回 422，不静默截断图片或其文字。旧纯文本的中间截断行为不变。
+- 非法图片/引用/JSON 返回 400，非法题型/选项或未启用视觉返回 422，不支持的 Content-Type / Content-Encoding 返回 415。本地目前只接受未压缩 JSON 或 multipart。
 - 推理内存不足返回 503，不返回部分答案；减少图片数或上下文后再试。可确定超长的重复图片在分配 patch 张量前拒绝。
 - assets 不接受 URL 或服务器本地文件路径，不自动访问外网或读任意文件。`--proxy` 会将已验证的图片转为 data URL 转发给配置的 `/v1/decide`；题目或标准中的图片会带标签放入该题的上游 state，避免丢图。原 proxy 的 inline-image state 格式仍可使用。
 

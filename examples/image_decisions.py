@@ -7,6 +7,7 @@ Start the server with --vision, then:
 import argparse
 import base64
 import json
+import mimetypes
 import uuid
 from pathlib import Path
 
@@ -19,9 +20,6 @@ def main(argv=None):
     parser.add_argument("--url", default="http://127.0.0.1:8020")
     parser.add_argument("--transport", choices=["multipart", "base64"], default="multipart")
     args = parser.parse_args(argv)
-    extension = args.image.suffix.lower()
-    if extension not in {".png", ".jpg", ".jpeg"}:
-        parser.error("--image must be a PNG or JPEG file")
     reference = str(uuid.uuid4())
     request = {
         "model": "train-jev-4b-lora",
@@ -34,19 +32,19 @@ def main(argv=None):
                                       "nothing": "Empty hands."}},
         },
     }
-    headers = {"TypeSafe-Danger-Zone-Images": "true"}
     url = args.url.rstrip("/") + "/v1/systemone"
     if args.transport == "base64":
         request["assets"][reference].update(
-            format="png" if extension == ".png" else "jpg",
             data_base64=base64.b64encode(args.image.read_bytes()).decode("ascii"),
         )
-        response = httpx.post(url, headers=headers, json=request, timeout=120)
+        response = httpx.post(url, json=request, timeout=120)
     else:
         request["assets"][reference]["part"] = "door-photo"
-        content_type = "image/png" if extension == ".png" else "image/jpeg"
+        content_type = mimetypes.guess_type(args.image.name)[0] or "application/octet-stream"
+        if not content_type.startswith("image/"):
+            content_type = "application/octet-stream"
         with args.image.open("rb") as image:
-            response = httpx.post(url, headers=headers, timeout=120, files=[
+            response = httpx.post(url, timeout=120, files=[
                 ("request", (None, json.dumps(request), "application/json")),
                 ("door-photo", (args.image.name, image, content_type)),
             ])
