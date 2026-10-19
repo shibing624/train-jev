@@ -116,7 +116,7 @@ def make_backend(a):
         ids = encode_many(tok, rows)
         items = [(len(e), i) for i, e in enumerate(ids)]
         for mb in micro_batches(items, a.batch_tokens):
-            h = last_hidden(body, [ids[i] for i in mb], 0, "cuda")
+            h = last_hidden(body, [ids[i] for i in mb], 0, "cuda", head.attention_mode)
             for i, hh in zip(mb, h):
                 out[i] = head.logits(hh, rows[i]["kind"], len(rows[i]["options"])).tolist()
         return out

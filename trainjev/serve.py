@@ -42,6 +42,7 @@ import torch
 from PIL import Image
 
 from trainjev.assets import AssetBundle, AssetError, prepare_assets, read_request
+from trainjev.autothink import ThinkControls, generate_thought, mix_probabilities, parse_controls, should_think
 from trainjev.data import encode, micro_batches, prompt
 from trainjev.modeling import last_hidden, load_model, load_temperatures, load_vision_model, resolve_checkpoint
 
@@ -64,6 +65,15 @@ def parse_args(argv=None):
     ap.add_argument("--batch_tokens", type=int, default=32768)
     ap.add_argument("--name", default="jev-4b")
     ap.add_argument("--strategy", default="single", choices=STRATEGIES, help="choices with > 16 options")
+    ap.add_argument("--variant", choices=("plain", "instant", "autothink"), default="plain",
+                    help="plain: checkpoint attention, no thoughts; instant: bidirectional checkpoint; "
+                         "autothink: causal checkpoint, think below --gate")
+    ap.add_argument("--gate", type=float, default=0.6, help="AutoThink thinks when the top probability is below this")
+    ap.add_argument("--mix", type=float, default=0.75, help="weight of the readout after the thought")
+    ap.add_argument("--think_budget", type=int, default=4096)
+    ap.add_argument("--think_temperature", type=float, default=0.6)
+    ap.add_argument("--think_top_p", type=float, default=0.95)
+    ap.add_argument("--think_top_k", type=int, default=20)
     ap.add_argument("--device", default="cuda")
     return ap.parse_args(argv)
 
@@ -75,18 +85,31 @@ def setup(a):
 
         S["client"] = httpx.AsyncClient(base_url=a.proxy, timeout=900)
         return
+    if not 0 <= a.gate <= 1 or not 0 <= a.mix <= 1:
+        raise ValueError("--gate and --mix must lie in [0, 1]")
+    if a.think_budget < 1:
+        raise ValueError("--think_budget must be at least 1")
     adapter = "" if a.base_only else resolve_checkpoint(a.adapter, a.adapter_revision)
     a.adapter = adapter
     dtype = torch.bfloat16 if torch.device(a.device).type == "cuda" else torch.float32
+    keep_lm_head = a.variant == "autothink"
     if a.vision:
-        tok, body, head, processor, vision = load_vision_model(a.base, adapter, dtype=dtype, device=a.device)
+        tok, body, head, processor, vision = load_vision_model(
+            a.base, adapter, dtype=dtype, device=a.device, keep_lm_head=keep_lm_head)
     else:
-        tok, body, head = load_model(a.base, adapter, dtype=dtype, device=a.device)
+        tok, body, head = load_model(a.base, adapter, dtype=dtype, device=a.device, keep_lm_head=keep_lm_head)
         processor = vision = None
+    if a.variant == "instant" and head.attention_mode != "bidirectional":
+        raise ValueError("Instant serving needs a checkpoint trained with --attention bidirectional")
+    if a.variant == "autothink" and head.attention_mode != "causal":
+        raise ValueError("AutoThink serving needs a causal checkpoint; bidirectional weights cannot generate")
+    if a.variant == "autothink" and head.lm_head is None:
+        raise ValueError("AutoThink requires the backbone lm_head")
     cal = a.calibration or (os.path.join(adapter, "calibration.json") if adapter else "")
     S.update(tok=tok, body=body, head=head, processor=processor, vision=vision,
-             temps=load_temperatures(cal), lock=asyncio.Lock())
-    print("temperatures", S["temps"], "strategy", a.strategy, flush=True)
+             temps=load_temperatures(cal), lock=asyncio.Lock(), attention=head.attention_mode)
+    print("temperatures", S["temps"], "strategy", a.strategy, "variant", a.variant,
+          "attention", head.attention_mode, flush=True)
 
 
 # ---------------------------------------------------------------------- inference
@@ -166,7 +189,8 @@ def _hf_many(items, assets=None):
            for k, s, q, o in items]
     out = [None] * len(items)
     for mb in micro_batches([(len(e), i) for i, e in enumerate(enc)], a.batch_tokens):
-        h = last_hidden(body, [enc[i] for i in mb], 0, a.device)
+        attention = S["attention"] if "attention" in S else "causal"
+        h = last_hidden(body, [enc[i] for i in mb], 0, a.device, attention)
         for i, hh in zip(mb, h):
             k, _, _, o = items[i]
             z = head.logits(hh, k, len(o)) / temps.get(k, 1.0)
@@ -319,6 +343,37 @@ async def _proxy_dist(kind, state, question, options, assets=None, strategy=None
     return j["probabilities"], j.get("usage", {}).get("prompt_tokens", 0)
 
 
+def _eos_ids(tok):
+    eos = tok.eos_token_id
+    if eos is None:
+        return set()
+    if isinstance(eos, (list, tuple)):
+        return set(eos)
+    return {eos}
+
+
+def _read_thought(kind, state, question, options, thought):
+    """Second readout. ``None`` when the thought prompt would be truncated."""
+    tok, head, temps, a = S["tok"], S["head"], S["temps"], S["args"]
+    text = prompt(kind, state, question, options, tok.choice_labels, thought)
+    ids = tok(text, add_special_tokens=False).input_ids
+    if len(ids) > a.max_len:
+        return None
+    hidden = last_hidden(S["body"], [ids], 0, a.device, "causal")[0]
+    logits = head.logits(hidden, kind, len(options)) / temps.get(kind, 1.0)
+    return torch.softmax(logits, -1).tolist(), len(ids)
+
+
+def _write_thought(kind, state, question, options, budget):
+    tok, a = S["tok"], S["args"]
+    prefix = prompt(kind, state, question, options, tok.choice_labels)
+    prefix = prefix[: -len("[decision]:")] + "[thought]\n"
+    ids = torch.tensor(tok(prefix, add_special_tokens=False).input_ids, dtype=torch.long, device=a.device)
+    generator = S["thought_generator"] if "thought_generator" in S else None
+    return generate_thought(S["body"], S["head"].lm_head, ids, tok.decode, _eos_ids(tok), budget,
+                            a.think_temperature, a.think_top_k, a.think_top_p, generator)
+
+
 def build_app():
     from fastapi import FastAPI, Request
     from fastapi.responses import JSONResponse
@@ -326,6 +381,7 @@ def build_app():
     app = FastAPI(title="train-jev System One server")
 
     @app.post("/v1/systemone")
+    @app.post("/v1/decisions")
     async def systemone(req: Request):
         t0 = time.perf_counter()
         answers, ntok = {}, 0
@@ -350,11 +406,14 @@ def build_app():
             strategy = body.get("strategy") or S["args"].strategy
             if strategy not in STRATEGIES:
                 raise ValueError(f"strategy must be one of {STRATEGIES}")
+            can_think = S["args"].variant == "autothink" and not S["args"].proxy
+            controls = parse_controls(body, ThinkControls(
+                "auto" if can_think else "never", S["args"].gate, S["args"].think_budget, S["args"].mix), can_think)
             parsed = {qid: map_question(q) for qid, q in body["questions"].items()}
             for kind, _, opts, _ in parsed.values():
                 if kind == "choice" and not 2 <= len(opts) <= 256:
                     return JSONResponse({"error": "choice needs 2-256 options per choice"}, status_code=422)
-            res = {}
+            res, thoughts, out_tokens = {}, {}, 0
             if S["args"].proxy:
                 outs = await asyncio.gather(*(_proxy_dist(k, body["state"], qt, o, assets, strategy)
                                              for k, qt, o, _ in parsed.values()))
@@ -373,6 +432,22 @@ def build_app():
                     for qid, (kind, qtext, opts, _) in parsed.items():
                         if qid not in res:
                             res[qid] = wide_dist(strategy, kind, st, qtext, opts, assets)
+                    if can_think:
+                        for qid, (kind, qtext, opts, _) in parsed.items():
+                            first, seen = res[qid]
+                            wide = kind == "choice" and len(opts) > 16
+                            if assets.markers or wide or not should_think(first, controls):
+                                thoughts[qid] = None
+                                continue
+                            text, produced = _write_thought(kind, st, qtext, opts, controls.budget)
+                            out_tokens += produced
+                            second = _read_thought(kind, st, qtext, opts, text) if text else None
+                            if second is None:
+                                thoughts[qid] = text
+                                continue
+                            probs, extra = second
+                            res[qid] = (mix_probabilities(first, probs, controls.mix), seen + extra)
+                            thoughts[qid] = text
             for qid, q in body["questions"].items():
                 _, _, _, keys = parsed[qid]
                 p, n = res[qid]
@@ -385,6 +460,11 @@ def build_app():
                 else:
                     pr = dict(zip(keys, map(float, p)))
                     answers[qid] = {"type": "score", "score": sum(i * v for i, v in enumerate(p)), "probabilities": pr}
+                if controls.details:
+                    answers[qid]["details"] = {"thought": bool(thoughts.get(qid)), "gate": controls.gate,
+                                               "mix": controls.mix, "think_mode": controls.think_mode}
+                    if controls.thought_text:
+                        answers[qid]["thought"] = thoughts.get(qid) or ""
         except AssetError as e:
             return JSONResponse({"error": str(e)}, status_code=e.status_code)
         except ValueError as e:
@@ -394,13 +474,18 @@ def build_app():
                                 status_code=503)
         finally:
             assets.close()
-        return {"model": S["args"].name, "answers": answers, "usage": {"input_tokens": ntok},
+        usage = {"input_tokens": ntok}
+        if can_think or controls.details:
+            usage["output_tokens"] = out_tokens
+        return {"model": S["args"].name, "answers": answers, "usage": usage,
                 "latency_ms": 1000 * (time.perf_counter() - t0)}
 
     @app.get("/health")
     async def health():
         return {"ok": True, "model": S["args"].name,
-                "images": bool(S["args"].proxy or getattr(S["args"], "vision", False))}
+                "images": bool(S["args"].proxy or S["args"].vision),
+                "variant": S["args"].variant,
+                "attention": S["attention"] if "attention" in S else "causal"}
 
     return app
 

@@ -28,7 +28,7 @@ with open(os.environ['SCRIPT_CALLS'], 'a') as stream:
         env = os.environ.copy()
         for key in ("BASE", "CKPT", "GPUS", "DATA", "OUT", "NAME", "DEVICE", "STRATEGY", "INIT_ADAPTER", "MIX",
                     "MIX_FRACTION", "KIND_COUNTS", "LR", "HEAD_LR", "RESUME", "FIT_CALIBRATION", "BASE_ONLY",
-                    "ADAPTER_REVISION", "VISION"):
+                    "ADAPTER_REVISION", "VISION", "ATTENTION", "THOUGHT_DROP", "VARIANT"):
             env.pop(key, None)
         env.update(PATH=str(bin_dir) + os.pathsep + env["PATH"], SCRIPT_CALLS=str(capture),
                    OUT=str(tmp_path / "output"), **settings)
@@ -101,6 +101,23 @@ def test_training_launcher_supports_supervision(shell_runner, script, base):
     assert value(args, "--kind_counts") == "choice:64,noul:32,score:32"
     assert value(args, "--lr") == "2e-5"
     assert value(args, "--head_lr") == "4e-5"
+
+
+def test_instant_and_autothink_launchers_set_attention(shell_runner):
+    instant, instant_calls = shell_runner("run_train_instant.sh")
+    assert instant.returncode == 0, instant.stderr
+    assert value(instant_calls[-1], "--attention") == "bidirectional"
+    auto, auto_calls = shell_runner("run_train_autothink.sh")
+    assert auto.returncode == 0, auto.stderr
+    assert value(auto_calls[-1], "--attention") == "causal"
+    assert value(auto_calls[-1], "--thought_drop") == "0.5"
+
+
+def test_serve_variant_is_opt_in(shell_runner):
+    _, plain_calls = shell_runner("run_serve.sh")
+    assert "--variant" not in plain_calls[-1]
+    _, auto_calls = shell_runner("run_serve.sh", VARIANT="autothink")
+    assert value(auto_calls[-1], "--variant") == "autothink"
 
 
 @pytest.mark.parametrize("script", ["run_train.sh", "run_train_27b.sh"])

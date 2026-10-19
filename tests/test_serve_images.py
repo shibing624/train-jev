@@ -59,6 +59,8 @@ class TextBody:
 
 
 class Head:
+    attention_mode = "causal"
+
     def logits(self, h, kind, n):
         if kind == 'noul':
             return torch.stack([-4 * h[0], 4 * h[0]])
@@ -270,7 +272,8 @@ def test_proxy_keeps_all_question_and_criterion_images(client):
 
 def test_setup_vision_uses_full_loader_and_shares_text_body(monkeypatch):
     srv.S.clear()
-    text, head, processor, vision = object(), object(), object(), object()
+    text, processor, vision = object(), object(), object()
+    head = Head()
     monkeypatch.setattr(srv, 'load_vision_model', lambda *a, **k: (Tokenizer(), text, head, processor, vision))
     monkeypatch.setattr(srv, 'load_model', lambda *a, **k: pytest.fail('vision setup used text-only loader'))
     srv.setup(srv.parse_args(['--vision', '--base_only', '--device', 'cpu']))

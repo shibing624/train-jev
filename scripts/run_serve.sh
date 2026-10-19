@@ -17,6 +17,8 @@ fi
 if [[ "${VISION:-0}" == "1" ]]; then
     revision_args+=(--vision)
 fi
+variant_args=()
+[[ -z "${VARIANT:-}" ]] || variant_args+=(--variant "$VARIANT")
 python -m trainjev.serve --base "$BASE" --adapter "$CKPT" --host "$HOST" --port "$PORT" \
     --name "${NAME:-$(basename "$CKPT")}" --device "${DEVICE:-cuda}" --strategy "${STRATEGY:-single}" \
-    "${revision_args[@]}" "$@"
+    "${revision_args[@]}" "${variant_args[@]}" "$@"

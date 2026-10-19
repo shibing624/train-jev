@@ -146,8 +146,9 @@ def test_cuda_device_index_keeps_bfloat16_setup(monkeypatch):
     recorded = []
     processor = Processor()
     monkeypatch.setattr(serve, "S", {})
+    head = type("Head", (), {"attention_mode": "causal", "lm_head": None})()
     monkeypatch.setattr(serve, "load_vision_model", lambda *args, **kwargs: (
-        recorded.append(kwargs) or processor.tokenizer, object(), object(), processor, object()))
+        recorded.append(kwargs) or processor.tokenizer, object(), head, processor, object()))
     serve.setup(serve.parse_args(["--vision", "--base_only", "--device", "cuda:0"]))
     assert recorded[0]["dtype"] == torch.bfloat16
     assert recorded[0]["device"] == "cuda:0"

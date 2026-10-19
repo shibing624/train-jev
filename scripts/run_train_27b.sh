@@ -24,6 +24,8 @@ MICRO_TOKENS=${MICRO_TOKENS:-16384}
 SAVE_STATE_EVERY=${SAVE_STATE_EVERY:-100}
 LR=${LR:-1e-4}
 HEAD_LR=${HEAD_LR:-2e-4}
+ATTENTION=${ATTENTION:-causal}
+THOUGHT_DROP=${THOUGHT_DROP:-}
 data_args=()
 [[ -z "${INIT_ADAPTER:-}" ]] || data_args+=(--init_adapter "$INIT_ADAPTER")
 [[ -z "${MIX:-}" ]] || data_args+=(--mix "$MIX")
@@ -57,4 +59,5 @@ torchrun --nproc_per_node "$NPROC" --master_port "$MASTER_PORT" -m trainjev.trai
     --val_n "$VAL_N" \
     --max_steps "$MAX_STEPS" \
     --steps "$STEPS" --seed "$SEED" --save_state_every "$SAVE_STATE_EVERY" \
-    "${data_args[@]}" "${resume_args[@]}" "$@" 2>&1 | tee -a "$OUT/train.log"
+    --attention "$ATTENTION" \
+    "${data_args[@]}" ${THOUGHT_DROP:+--thought_drop "$THOUGHT_DROP"} "${resume_args[@]}" "$@" 2>&1 | tee -a "$OUT/train.log"

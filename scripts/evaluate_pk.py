@@ -102,7 +102,7 @@ def predict_probabilities(rows, *, base, adapter, adapter_revision=None, device=
     probabilities = [None] * len(rows)
     with torch.inference_mode():
         for batch in micro_batches([(len(ids), i) for i, ids in enumerate(encoded)], batch_tokens):
-            hidden = last_hidden(body, [encoded[i] for i in batch], pad_id, device)
+            hidden = last_hidden(body, [encoded[i] for i in batch], pad_id, device, head.attention_mode)
             for index, h in zip(batch, hidden):
                 row = rows[index]
                 logits = head.logits(h, row["kind"], len(row["options"]))

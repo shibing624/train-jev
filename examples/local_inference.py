@@ -42,7 +42,7 @@ def main(argv=None):
     row = {"kind": "choice", "state": a.state, "question": a.question, "options": a.options}
     ids = encode(tok, row, labels=tok.choice_labels)
     with torch.inference_mode():
-        h = last_hidden(body, [ids], tok.pad_token_id or 0, device)[0]
+        h = last_hidden(body, [ids], tok.pad_token_id or 0, device, head.attention_mode)[0]
         p = torch.softmax(head.logits(h, "choice", len(a.options)) / temps["choice"], -1).cpu().tolist()
     result = {"device": device, "calibration_loaded": calibration.is_file(), "input_tokens": len(ids),
               "prediction": a.options[max(range(len(p)), key=p.__getitem__)],

@@ -22,7 +22,7 @@ ADAPTER_REVISION=v0.3.0 STRATEGY=tournament bash scripts/run_serve.sh --batch_to
 VISION=1 bash scripts/run_serve.sh
 ```
 
-`run_serve.sh` supports `BASE`, `CKPT`, `ADAPTER_REVISION`, `DEVICE`, `NAME`, `HOST`, `PORT`, `STRATEGY` and `VISION`,
+`run_serve.sh` supports `BASE`, `CKPT`, `ADAPTER_REVISION`, `DEVICE`, `NAME`, `HOST`, `PORT`, `STRATEGY`, `VISION`, and `VARIANT`,
 and forwards trailing arguments to `trainjev.serve`. Script defaults are `BASE=Qwen/Qwen3.5-4B`,
 `CKPT=shibing624/train-jev-4b-lora`, `DEVICE=cuda`, `NAME=train-jev-4b-lora`, `HOST=127.0.0.1`, `PORT=8020`
 and `STRATEGY=single`; the adapter revision is unpinned by default. The table below lists Python CLI defaults:
@@ -42,6 +42,10 @@ unlike the script, the CLI has no default `--adapter`.
 | `--base_only` | off | serve the untrained backbone (head initialised from `lm_head`) as a reference |
 | `--vision` | off | load the full Qwen VL backbone for image assets; adds vision-encoder memory |
 | `--proxy URL` | – | put an [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL) `serve_decide.py` server behind the same API, for side-by-side comparison |
+| `--variant` | `plain` | `plain` is one forward pass at the checkpoint's attention; `instant` requires bidirectional `head.pt`; `autothink` requires a causal checkpoint and the backbone `lm_head` |
+| `--gate` / `--mix` | `0.6` / `0.75` | AutoThink writes a thought when the top probability is below the gate; `mix` weights the post-thought readout |
+| `--think_budget` | `4096` | maximum thought tokens |
+| `--think_temperature` / `--think_top_p` / `--think_top_k` | `0.6` / `0.95` / `20` | thought sampler |
 
 Memory: the 4B model in bf16 is about 9 GB and fits a 24 GB GPU; the 27B model is about 54 GB and needs an 80 GB GPU.
 On CUDA install `flash-linear-attention`; without it the Gated DeltaNet layers of Qwen3.5 run a slow reference path.
@@ -51,8 +55,9 @@ Plain PEFT / Transformers loading applies only the LoRA adapter. The decision he
 
 ## API
 
-`POST /v1/systemone`, compatible with TypeSafe's [System One API](https://docs.typesafe.ai/api). `GET /health`
-returns the model name.
+`POST /v1/systemone`, compatible with TypeSafe's [System One API](https://docs.typesafe.ai/api). `POST /v1/decisions` is the same handler. `GET /health` returns the model name, `variant`, and `attention`.
+
+Omitting `--variant` keeps a released causal model on one forward pass. `think_mode` is `auto`, `never`, or `always` (aliases `hybrid`, `plain`, `think`). Plain and Instant accept only `never`. AutoThink defaults to `auto`. Image questions and choices wider than 16 options skip the thought. StartLux's published numbers use gate 0.9; the server default stays 0.6. See the [Decision Index plan](di_plan.en.md).
 
 ```jsonc
 {

@@ -22,7 +22,7 @@ ADAPTER_REVISION=v0.3.0 STRATEGY=tournament bash scripts/run_serve.sh --batch_to
 VISION=1 bash scripts/run_serve.sh
 ```
 
-`run_serve.sh` 支持 `BASE`、`CKPT`、`ADAPTER_REVISION`、`DEVICE`、`NAME`、`HOST`、`PORT`、`STRATEGY`、`VISION`，
+`run_serve.sh` 支持 `BASE`、`CKPT`、`ADAPTER_REVISION`、`DEVICE`、`NAME`、`HOST`、`PORT`、`STRATEGY`、`VISION`、`VARIANT`，
 尾随参数直接传给 `trainjev.serve`。脚本默认 `BASE=Qwen/Qwen3.5-4B`、`CKPT=shibing624/train-jev-4b-lora`、
 `DEVICE=cuda`、`NAME=train-jev-4b-lora`、`HOST=127.0.0.1`、`PORT=8020`、`STRATEGY=single`；adapter 版本默认不固定。
 下表是 Python CLI 的默认值，`--adapter` 没有默认值，与脚本不同。
@@ -41,6 +41,10 @@ VISION=1 bash scripts/run_serve.sh
 | `--base_only` | 关 | 用未训练的底座（决策头从 `lm_head` 初始化）作为参照 |
 | `--vision` | 关 | 加载完整 Qwen VL 底座，在同一接口接受图片 assets；额外占用视觉编码器显存 |
 | `--proxy URL` | – | 把 [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL) 的 `serve_decide.py` 服务挂到同一个 API 后面，方便对比 |
+| `--variant` | `plain` | `plain` 按 checkpoint 的注意力一次前向；`instant` 要求 `head.pt` 为 bidirectional；`autothink` 要求因果 checkpoint 且保留 `lm_head` |
+| `--gate` / `--mix` | `0.6` / `0.75` | AutoThink：最高概率低于门控才写思维；`mix` 是思维后读出的权重 |
+| `--think_budget` | `4096` | 思维 token 上限 |
+| `--think_temperature` / `--think_top_p` / `--think_top_k` | `0.6` / `0.95` / `20` | 思维采样 |
 
 显存：4B 模型 bf16 约 9 GB，24 GB 显卡即可；27B 模型约 54 GB，需要 80 GB 显卡。CUDA 上请安装
 `flash-linear-attention`，否则 Qwen3.5 的 Gated DeltaNet 层会走很慢的参考实现。
@@ -50,7 +54,9 @@ VISION=1 bash scripts/run_serve.sh
 
 ## API
 
-`POST /v1/systemone`，兼容 TypeSafe 的 [System One API](https://docs.typesafe.ai/api)。`GET /health` 返回模型名。
+`POST /v1/systemone`，兼容 TypeSafe 的 [System One API](https://docs.typesafe.ai/api)。`POST /v1/decisions` 是同一处理函数。`GET /health` 返回模型名、`variant` 和 `attention`。
+
+不传 `--variant` 时，已发布的因果模型与以前一样只做一次前向。`think_mode` 为 `auto` / `never` / `always`（别名 `hybrid` / `plain` / `think`）。plain 与 instant 只接受 `never`。AutoThink 默认 `auto`；带图的题和超过 16 个选项的选择题不写思维。公布的 StartLux 数字使用门控 0.9，服务默认仍是 0.6。细节见 [Decision Index 方案](di_plan.md)。
 
 ```jsonc
 {

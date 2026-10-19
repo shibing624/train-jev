@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+#### decision index recipe
+
+- 增加 Instant / AutoThink 训练与服务路径，默认仍是因果注意力和一次前向。`scripts/run_train_instant.sh` 只在 Qwen full-attention 层对 prompt 双向；`scripts/run_train_autothink.sh` 保持因果并默认丢掉一半监督思维。服务 `--variant plain|instant|autothink`，`POST /v1/decisions` 与 `/v1/systemone` 相同。因果 checkpoint 不能在服务时改成双向。
+- 本地对比对生成器 `scripts/build_precision_mix.py` 与 LoRA+head 多种子平均 `scripts/average_lora.py`。RLCD² 只提供奖励、优势和 clipped surrogate，没有在线训练循环。方案、引用的公开数字和风险见 `docs/di_plan.md`。这次没有新的 Decision Index 分数；precision-mix 不是 DecisionPivot。
+
 #### serving
 
 - `/v1/systemone` 新增 TypeSafe 风格图片 assets：JSON/base64 与 multipart，引用支持 state / 单题 instructions / criteria，保留对象键与题目隔离；本地请求不需要额外实验 header。

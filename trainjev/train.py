@@ -78,6 +78,10 @@ def parse_args(argv=None):
     ap.add_argument("--rps_w", type=float, default=0.5)
     ap.add_argument("--brier_w", type=float, default=0.0, help="optional per-row Brier loss coefficient (LoRA only)")
     ap.add_argument("--perm", type=float, default=0.3, help="probability of shuffling a choice row's options")
+    ap.add_argument("--attention", choices=("causal", "bidirectional"), default="causal",
+                    help="causal keeps System 1; bidirectional is the Instant full-attention prompt mask")
+    ap.add_argument("--thought_drop", type=float, default=0.5,
+                    help="probability of dropping a row's thought so the one-pass readout still trains")
     ap.add_argument("--placeholder_w", type=float, default=0.05, help="loss weight of placeholder rows (0 drops them)")
     ap.add_argument("--eval_every", type=int, default=500)
     ap.add_argument("--val_n", type=int, default=4000)
@@ -162,11 +166,14 @@ def setup_data(a, log):
         return rows
 
     def augment(r, rng):
-        if r["kind"] != "choice" or rng.random() >= a.perm:
-            return r
-        perm = list(range(len(r["options"])))
-        rng.shuffle(perm)
-        return dict(r, options=[r["options"][j] for j in perm], target=[r["target"][j] for j in perm])
+        if r["kind"] == "choice" and rng.random() < a.perm:
+            perm = list(range(len(r["options"])))
+            rng.shuffle(perm)
+            r = dict(r, options=[r["options"][j] for j in perm], target=[r["target"][j] for j in perm])
+        if "thought" in r and r["thought"] and rng.random() < a.thought_drop:
+            r = dict(r)
+            del r["thought"]
+        return r
 
     return train, val, steps, step_rows, augment
 
@@ -224,6 +231,8 @@ def main(argv=None):
     a = parse_args(argv)
     if a.brier_w < 0:
         raise ValueError("--brier_w must be nonnegative")
+    if not 0 <= a.thought_drop <= 1:
+        raise ValueError("--thought_drop must lie in [0, 1]")
     if a.resume:
         require_state(os.path.join(a.out, "state"))
     if a.full_ft:
@@ -254,7 +263,10 @@ def main(argv=None):
     val_ids = encode_many(tok, val, a.max_len)
 
     # ------------------------------------------------------------------ model
-    base = AutoModelForCausalLM.from_pretrained(a.base, dtype=torch.bfloat16)
+    load = {"dtype": torch.bfloat16}
+    if a.attention == "bidirectional":
+        load["attn_implementation"] = "sdpa"
+    base = AutoModelForCausalLM.from_pretrained(a.base, **load)
     init_rows = base.get_output_embeddings().weight[VERBALIZER_IDS].detach().float().clone()
     body = base.model  # Qwen3.5 text model (embeddings + layers + final norm); lm_head is not used
     body.config.use_cache = False
@@ -303,7 +315,7 @@ def main(argv=None):
         items = [(len(val_ids[i]), i) for i in mine]
         res = {}
         for mb in micro_batches(items, a.micro_tokens * 2):
-            h = last_hidden(body, [val_ids[i] for i in mb], pad, dev)
+            h = last_hidden(body, [val_ids[i] for i in mb], pad, dev, a.attention)
             res.update(zip(mb, head_probs(head, h, [rows[i] for i in mb])))
         gathered = [None] * world
         dist.all_gather_object(gathered, res)
@@ -320,7 +332,8 @@ def main(argv=None):
         os.makedirs(d, exist_ok=True)
         body.save_pretrained(d)
         torch.save({"weight": head.weight.detach().cpu(), "bias": head.bias.detach().cpu(),
-                    "verbalizer_ids": VERBALIZER_IDS, "base": a.base, "args": vars(a)}, os.path.join(d, "head.pt"))
+                    "verbalizer_ids": VERBALIZER_IDS, "base": a.base, "attention": a.attention,
+                    "args": vars(a)}, os.path.join(d, "head.pt"))
 
     # ------------------------------------------------------------------ train
     hist = []
@@ -355,7 +368,7 @@ def main(argv=None):
         tot_loss, tot_w = torch.zeros((), device=dev), 0.0
         # ranks may run different numbers of micro-batches: gradients are reduced manually after all of them
         for mb in micro_batches(enc, a.micro_tokens):
-            h = last_hidden(body, [e for e, _ in mb], pad, dev)
+            h = last_hidden(body, [e for e, _ in mb], pad, dev, a.attention)
             loss = micro_loss(head, h, [r for _, r in mb], a.rps_w, a.brier_w)
             tot_loss += loss.detach()
             tot_w += sum(r["weight"] for _, r in mb)

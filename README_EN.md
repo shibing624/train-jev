@@ -142,6 +142,7 @@ The head is initialized from the corresponding backbone `lm_head` token rows, pr
 | [Training](docs/training.en.md) | Data, recipes, resuming, calibration, memory, speed and backbones |
 | [Evaluation](docs/evaluation.en.md) | Running and reproducing the evaluation suites |
 | [Results](docs/results.en.md) | Breakdowns, comparisons and limitations |
+| [Decision Index plan](docs/di_plan.en.md) | Gap to StartLux Instant / AutoThink, plus how to train and evaluate |
 
 ## Roadmap
 
@@ -149,6 +150,7 @@ The head is initialized from the corresponding backbone `lm_head` token rows, pr
 - [x] Add public gold and rule data; 27B beats autotrust/JEV-27B-VL on train-jev-pk
 - [ ] Broader public gold-labelled data to close the knowledge and language gaps to TypeSafe Jev v1.13
 - [ ] Full fine-tune of Qwen3.8-27B
+- [ ] Follow the [Decision Index plan](docs/di_plan.en.md): bidirectional attention, seed averaging, and AutoThink against StartLux-Decision-v1.1 (no new DI score on a shared suite yet)
 - [x] TypeSafe image assets in `/v1/systemone` (JSON/base64 and multipart)
 
 ## Citation

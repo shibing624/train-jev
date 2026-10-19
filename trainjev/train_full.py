@@ -47,15 +47,18 @@ def init_rotary(body):
             m.attention_scaling = scaling
 
 
-def load_sharded(base, rank, dev, shard, cpu_offload=False):
+def load_sharded(base, rank, dev, shard, cpu_offload=False, attn_implementation=None):
     """Build the Qwen3.5 text model on the meta device, shard it with ``shard(body)``, then fill the shards from rank
     0's copy of the checkpoint. -> ``(body, init_rows)`` with ``init_rows`` the fp32 ``lm_head`` rows of the
     verbalizers (from rank 0, broadcast)."""
     from torch.distributed.checkpoint.state_dict import StateDictOptions, set_model_state_dict
     from transformers import AutoConfig, AutoModelForCausalLM
 
+    config = AutoConfig.from_pretrained(base)
+    if attn_implementation:
+        config._attn_implementation = attn_implementation
     with torch.device("meta"):
-        body = AutoModelForCausalLM.from_config(AutoConfig.from_pretrained(base), dtype=torch.float32).model
+        body = AutoModelForCausalLM.from_config(config, dtype=torch.float32).model
     shard(body)
     if cpu_offload:  # parameter shards live on the host; buffers (rotary) still go to the GPU, as fully_shard does
         body.to_empty(device="cpu")
@@ -115,7 +118,8 @@ def main_full(a):
             fully_shard(layer, **kw)
         fully_shard(body, **kw)
 
-    body, init_rows = load_sharded(a.base, rank, dev, shard, a.cpu_offload)
+    impl = "sdpa" if a.attention == "bidirectional" else None
+    body, init_rows = load_sharded(a.base, rank, dev, shard, a.cpu_offload, impl)
     body.config.use_cache = False
     if not a.no_gc:
         body.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
@@ -175,10 +179,10 @@ def main_full(a):
         for j in range(global_max(len(mbs))):
             if j < len(mbs):
                 mb = mbs[j]
-                h = last_hidden(body, [val_ids[i] for i in mb], pad, dev)
+                h = last_hidden(body, [val_ids[i] for i in mb], pad, dev, a.attention)
                 res.update(zip(mb, head_probs(head, h, [rows[i] for i in mb])))
             else:
-                last_hidden(body, [[pad]], pad, dev)  # keep FSDP collectives in step
+                last_hidden(body, [[pad]], pad, dev, a.attention)  # keep FSDP collectives in step
         gathered = [None] * world
         dist.all_gather_object(gathered, res)
         probs = [None] * len(rows)
@@ -199,7 +203,8 @@ def main_full(a):
             save_file({k: v.to(torch.bfloat16).contiguous() for k, v in sd.items()},
                       os.path.join(d, "model.safetensors"), metadata={"format": "pt", "trainjev": "full-v1"})
             torch.save({"weight": head.weight.detach().cpu(), "bias": head.bias.detach().cpu(),
-                        "verbalizer_ids": VERBALIZER_IDS, "base": a.base, "full": True, "args": vars(a)},
+                        "verbalizer_ids": VERBALIZER_IDS, "base": a.base, "full": True, "attention": a.attention,
+                        "args": vars(a)},
                        os.path.join(d, "head.pt"))
             log(f"saved {d} ({time.time() - t:.0f}s)")
         del sd
@@ -233,13 +238,13 @@ def main_full(a):
         for j in range(global_max(len(mbs))):
             if j < len(mbs):
                 mb = mbs[j]
-                h = last_hidden(body, [e for e, _ in mb], pad, dev)
+                h = last_hidden(body, [e for e, _ in mb], pad, dev, a.attention)
                 loss = micro_loss(head, h, [r for _, r in mb], a.rps_w)
                 tot_loss += loss.detach()
                 tot_w += sum(r["weight"] for _, r in mb)
                 tok_seen += sum(len(e) for e, _ in mb)
             else:  # zero-weight pass so every rank runs the same FSDP all-gathers / reduce-scatters
-                h = last_hidden(body, [[pad]], pad, dev)
+                h = last_hidden(body, [[pad]], pad, dev, a.attention)
                 loss = head.logits(h[0], "noul", 2).sum() * 0.0
             (loss / a.batch * world).backward()  # FSDP averages over ranks -> mean over the global batch
         reduce_head_grads()

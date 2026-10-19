@@ -25,18 +25,28 @@ import random
 LABELS = list("ABCDEFGHIJKLMNOP")
 
 
-def prompt(kind, state, question, options, labels=LABELS):
+def prompt(kind, state, question, options, labels=LABELS, thought=None):
     if not isinstance(state, str):
         state = json.dumps(state, ensure_ascii=False)
     if kind == "choice" and len(options) > len(labels):
         raise ValueError(f"{len(options)} options but only {len(labels)} labels")
     lines = [f"{labels[i]}) {o}" for i, o in enumerate(options)] if kind == "choice" else list(options)
-    return f"[kind] {kind}\n[state] {state}\n[question] {question}\n[options]\n" + "\n".join(lines) + "\n[decision]:"
+    body = f"[kind] {kind}\n[state] {state}\n[question] {question}\n[options]\n" + "\n".join(lines)
+    if thought:
+        return body + f"\n[thought]\n{thought}\n[decision]:"
+    return body + "\n[decision]:"
+
+
+def row_thought(row):
+    """Thought text attached to a training row, or ``None`` when the row is a one-pass readout."""
+    thought = row["thought"] if "thought" in row else None
+    return thought or None
 
 
 def encode(tok, row, max_len=2048, labels=LABELS):
-    """-> token ids. An over-long state is cut in the middle; the question and options are never cut."""
-    ids = tok(prompt(row["kind"], row["state"], row["question"], row["options"], labels),
+    """-> token ids. An over-long state is cut in the middle; the question, options and thought are never cut."""
+    thought = row_thought(row)
+    ids = tok(prompt(row["kind"], row["state"], row["question"], row["options"], labels, thought),
               add_special_tokens=False).input_ids
     if len(ids) <= max_len:
         return ids
@@ -45,7 +55,7 @@ def encode(tok, row, max_len=2048, labels=LABELS):
     keep = max(64, len(st) - (len(ids) - max_len) - 8)
     cut = tok.decode(st[: keep // 2]) + " … " + tok.decode(st[-(keep - keep // 2):])
     r = dict(row, state=cut)
-    return tok(prompt(r["kind"], r["state"], r["question"], r["options"], labels),
+    return tok(prompt(r["kind"], r["state"], r["question"], r["options"], labels, thought),
                add_special_tokens=False).input_ids[:max_len]
 
 
@@ -53,7 +63,7 @@ def encode_many(tok, rows, max_len=2048, labels=LABELS):
     """``[encode(tok, r, max_len, labels) for r in rows]``, with one batched tokenizer call (about 10x faster)."""
     if not rows:
         return []
-    ids = tok([prompt(r["kind"], r["state"], r["question"], r["options"], labels) for r in rows],
+    ids = tok([prompt(r["kind"], r["state"], r["question"], r["options"], labels, row_thought(r)) for r in rows],
               add_special_tokens=False).input_ids
     return [e if len(e) <= max_len else encode(tok, r, max_len, labels) for e, r in zip(ids, rows)]
 

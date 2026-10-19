@@ -27,6 +27,7 @@ import os
 import sys
 import time
 
+from trainjev.attention import apply_prompt_attention
 from trainjev.modeling import resolve_checkpoint
 
 DEFAULT_SETS = "full_cvbench,full_blink,full_realworldqa,full_charxiv,full_infovqa"
@@ -103,6 +104,7 @@ def main(argv=None):
         adapter = "" if a.base_only else a.adapter
         if adapter:
             m.model.language_model = load_trained(m.model.language_model, head, adapter)
+        apply_prompt_attention(m.model.language_model, head.attention_mode)
         temps = load_temperatures(os.path.join(adapter, "calibration.json") if adapter else "")
         m.cuda().eval()
         head.cuda()

@@ -343,6 +343,8 @@ def fake_backend(monkeypatch):
             return SimpleNamespace(input_ids=[1] * (2 if "[state] short\n" in text else 4))
 
     class Head:
+        attention_mode = "causal"
+
         def logits(self, hidden, kind, n):
             calls.heads.append((kind, n, float(hidden[0])))
             return torch.zeros(n) if kind == "noul" else torch.arange(n, dtype=torch.float32)
@@ -351,8 +353,8 @@ def fake_backend(monkeypatch):
         calls.loads.append((base, adapter, kwargs))
         return Tokenizer(), object(), Head()
 
-    def last_hidden(body, ids, pad_id, device):
-        assert pad_id == 7 and device == "cpu"
+    def last_hidden(body, ids, pad_id, device, attention="causal"):
+        assert pad_id == 7 and device == "cpu" and attention == "causal"
         calls.batches.append([len(tokens) for tokens in ids])
         return torch.tensor([[len(tokens)] for tokens in ids], dtype=torch.float32)
 

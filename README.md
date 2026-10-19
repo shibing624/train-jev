@@ -142,6 +142,7 @@ flowchart LR
 | [训练](docs/training.md) | 数据与配方、续训、校准、显存与速度、换底座 |
 | [评测](docs/evaluation.md) | 各套评测的运行与复现 |
 | [结果](docs/results.md) | 评测明细、对照与局限 |
+| [Decision Index 方案](docs/di_plan.md) | 相对 StartLux Instant / AutoThink 的差距、训练与评测步骤 |
 
 ## Roadmap
 
@@ -149,6 +150,7 @@ flowchart LR
 - [x] 加入公开金标和规则数据，27B 在 train-jev-pk 上超过 autotrust/JEV-27B-VL
 - [ ] 更广的公开金标数据，补齐知识推理和语言理解上与 TypeSafe Jev v1.13 的差距
 - [ ] 训练 Full-finetune 的 Qwen3.8-27B
+- [ ] 按 [Decision Index 方案](docs/di_plan.md) 用双向注意力、多种子平均和 AutoThink 缩小与 StartLux-Decision-v1.1 的差距（尚未在同一套 DI 上测出新分数）
 - [x] `/v1/systemone` 服务支持 TypeSafe 图片 assets（JSON/base64、multipart）
 
 ## Citation

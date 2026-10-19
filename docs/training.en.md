@@ -166,3 +166,7 @@ Refinement times describe the completed experiments; released models use step 51
 | shibing624/train-jev-27b-lora | 78.72% | 0.858 | 0.032 | 55.58 |
 
 These are released-model results under fixed protocols, not expected scores for the PAWS example. Comparisons against [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL), Kev and TypeSafe API, with limitations, are in [the results guide](results.en.md).
+
+## 7. Instant and AutoThink
+
+The default remains causal attention and one forward pass. Released weights do not need a new flag. `scripts/run_train_instant.sh` trains the StartLux Instant mask (bidirectional full-attention layers, linear layers stay causal). `scripts/run_train_autothink.sh` stays causal and drops half of the supervised thoughts (`THOUGHT_DROP`, default 0.5). Average seeds with `scripts/average_lora.py`. `scripts/build_precision_mix.py` writes a local contrast mix; it is not DecisionPivot and not a DI score. Commands, cited public numbers, and risks are in the [Decision Index plan](di_plan.en.md). This repo does not yet have a new score on a shared DI suite.

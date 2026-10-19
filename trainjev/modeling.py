@@ -89,6 +89,8 @@ class DecisionHead(nn.Module):
         self.weight = nn.Parameter(init_rows.detach().float().clone())  # [24, d]
         self.bias = nn.Parameter(torch.zeros(init_rows.shape[0]))
         self.register_buffer("wide", torch.zeros(0, init_rows.shape[1]), persistent=False)
+        self.attention_mode = "causal"
+        self.lm_head = None
 
     def logits(self, h, kind, n):
         lo, _ = RANGES[kind]
@@ -105,12 +107,20 @@ class DecisionHead(nn.Module):
         return h.float() @ self.weight.T + self.bias
 
 
-def last_hidden(body, batch_ids, pad_id, device):
-    """Right-padded batch -> final-norm hidden state at each row's last real token.
+def last_hidden(body, batch_ids, pad_id, device, attention="causal"):
+    """Final-norm hidden state at each row's last real token.
 
-    Right padding keeps every real token's causal context exact for both the attention and the Gated DeltaNet
-    (recurrent) layers, so no attention mask is needed.
+    ``causal`` right-pads and leaves every layer causal, which is the historical System 1 path.
+    ``bidirectional`` runs one unpadded forward per exact length, with full-attention layers attending over the
+    whole row and linear-attention layers left causal. See ``trainjev.attention``.
     """
+    from trainjev.attention import apply_prompt_attention, grouped_hidden
+
+    if attention not in ("causal", "bidirectional"):
+        raise ValueError(f"attention must be causal or bidirectional, got {attention}")
+    apply_prompt_attention(body, attention)
+    if attention == "bidirectional":
+        return grouped_hidden(body, batch_ids, device)
     L = max(len(x) for x in batch_ids)
     x = torch.full((len(batch_ids), L), pad_id, dtype=torch.long)
     for i, s in enumerate(batch_ids):
@@ -164,42 +174,83 @@ def load_trained(text_model, head, ckpt, *, trainable=False):
         raise ValueError("Decision head contains nonfinite values")
     head.weight.data.copy_(sd["weight"])
     head.bias.data.copy_(sd["bias"])
+    if "attention" in sd:
+        if sd["attention"] not in ("causal", "bidirectional"):
+            raise ValueError(f"checkpoint attention must be causal or bidirectional, got {sd['attention']}")
+        head.attention_mode = sd["attention"]
     return text_model
 
 
-def load_model(base, adapter="", dtype=torch.bfloat16, device="cuda"):
+def checkpoint_attention(checkpoint):
+    """Attention mode recorded in ``head.pt``. Checkpoints written before that field are causal."""
+    import os
+
+    path = resolve_checkpoint(checkpoint) if checkpoint else ""
+    if not path:
+        return "causal"
+    head_path = os.path.join(path, "head.pt")
+    if not os.path.exists(head_path):
+        return "causal"
+    sd = torch.load(head_path, map_location="cpu", weights_only=True)
+    if "attention" not in sd:
+        return "causal"
+    if sd["attention"] not in ("causal", "bidirectional"):
+        raise ValueError(f"checkpoint attention must be causal or bidirectional, got {sd['attention']}")
+    return sd["attention"]
+
+
+def load_model(base, adapter="", dtype=torch.bfloat16, device="cuda", keep_lm_head=False):
     """Load ``(tokenizer, body, head)`` for inference.
 
     ``adapter=""`` gives the untrained reference (head initialised from ``lm_head``); otherwise ``adapter`` is a
-    train-jev checkpoint directory (LoRA or full-parameter, see ``load_trained``).
+    train-jev checkpoint directory (LoRA or full-parameter, see ``load_trained``). Bidirectional checkpoints load
+    SDPA attention. ``keep_lm_head`` retains the backbone output projection on ``head.lm_head`` for AutoThink.
     """
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
+    from trainjev.attention import apply_prompt_attention
+
+    mode = checkpoint_attention(adapter)
+    load = {"dtype": dtype}
+    if mode == "bidirectional":
+        load["attn_implementation"] = "sdpa"
     adapter = resolve_checkpoint(adapter)
     tok = AutoTokenizer.from_pretrained(base)
     check_verbalizers(tok)
-    m = AutoModelForCausalLM.from_pretrained(base, dtype=dtype)
+    m = AutoModelForCausalLM.from_pretrained(base, **load)
     head = DecisionHead(m.get_output_embeddings().weight[VERBALIZER_IDS])
     tok.choice_labels, wide_ids = choice_labels(tok)  # labels 17-256: untrained lm_head rows, see module docstring
     head.wide = m.get_output_embeddings().weight[wide_ids[16:]].detach().float().clone()
     body = m.model
     if adapter:
         body = load_trained(body, head, adapter)
-    del m.lm_head
+    if keep_lm_head:
+        head.lm_head = m.lm_head
+    else:
+        del m.lm_head
     body.to(device).eval()
     head.to(device)
+    if head.lm_head is not None:
+        head.lm_head.to(device).eval()
+    apply_prompt_attention(body, head.attention_mode)
     return tok, body, head
 
 
-def load_vision_model(base, adapter="", dtype=torch.bfloat16, device="cuda"):
+def load_vision_model(base, adapter="", dtype=torch.bfloat16, device="cuda", keep_lm_head=False):
     """Load the full Qwen VL model; share its trained text body with the ordinary text path."""
     from transformers import AutoModelForImageTextToText, AutoProcessor
 
+    from trainjev.attention import apply_prompt_attention
+
+    mode = checkpoint_attention(adapter)
+    load = {"dtype": dtype}
+    if mode == "bidirectional":
+        load["attn_implementation"] = "sdpa"
     adapter = resolve_checkpoint(adapter)
     processor = AutoProcessor.from_pretrained(base)
     tok = processor.tokenizer
     check_verbalizers(tok)
-    model = AutoModelForImageTextToText.from_pretrained(base, dtype=dtype)
+    model = AutoModelForImageTextToText.from_pretrained(base, **load)
     if not hasattr(model.model, "language_model"):
         raise ValueError("--vision requires a Qwen3.5 / Qwen3.8 multimodal backbone")
     head = DecisionHead(model.get_output_embeddings().weight[VERBALIZER_IDS])
@@ -207,9 +258,15 @@ def load_vision_model(base, adapter="", dtype=torch.bfloat16, device="cuda"):
     head.wide = model.get_output_embeddings().weight[wide_ids[16:]].detach().float().clone()
     if adapter:
         model.model.language_model = load_trained(model.model.language_model, head, adapter)
-    del model.lm_head
+    if keep_lm_head:
+        head.lm_head = model.lm_head
+    else:
+        del model.lm_head
     model.to(device).eval()
     head.to(device)
+    if head.lm_head is not None:
+        head.lm_head.to(device).eval()
+    apply_prompt_attention(model.model.language_model, head.attention_mode)
     return tok, model.model.language_model, head, processor, model.model
 
 

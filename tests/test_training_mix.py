@@ -112,6 +112,7 @@ def test_trainable_load_keeps_adapter_and_head(tmp_path):
     assert isinstance(loaded, PeftModel)
     assert all(p.requires_grad for n, p in loaded.named_parameters() if "lora_" in n)
     assert torch.equal(head.weight, weight) and torch.equal(head.bias, bias)
+    assert head.attention_mode == "causal"
     x = torch.randn(2, 8)
     with torch.no_grad():
         assert torch.allclose(loaded.eval()(x), model(x), atol=1e-6)
@@ -123,3 +124,4 @@ def test_trainable_load_keeps_adapter_and_head(tmp_path):
 def test_training_defaults_do_not_enable_new_objectives():
     a = parse_args(["--out", "unused"])
     assert a.mix_fraction is None and a.brier_w == 0 and a.init_adapter == "" and a.kind_counts == ""
+    assert a.attention == "causal" and a.thought_drop == 0.5

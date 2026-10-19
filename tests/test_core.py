@@ -118,7 +118,7 @@ def test_server_exposes_only_systemone_and_health():
     pytest.importorskip("fastapi")
     routes = {(r.path, m) for r in build_app().routes if hasattr(r, "methods") for m in r.methods}
     api = {x for x in routes if not x[0].startswith(("/docs", "/redoc", "/openapi"))}
-    assert api == {("/v1/systemone", "POST"), ("/health", "GET")}
+    assert api == {("/v1/systemone", "POST"), ("/v1/decisions", "POST"), ("/health", "GET")}
 
 
 def test_micro_batches_respect_token_budget():

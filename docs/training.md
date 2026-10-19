@@ -166,3 +166,7 @@ bash scripts/run_serve.sh
 | shibing624/train-jev-27b-lora | 78.72% | 0.858 | 0.032 | 55.58 |
 
 这些是发布模型在固定评测协议下的结果，不是 PAWS 示例训练的预期分数。与 [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL)、Kev 和 TypeSafe API 的对比及局限见 [结果文档](results.md)。
+
+## 7. Instant 与 AutoThink
+
+默认仍是因果注意力和一次前向，已发布权重不用改。要对齐 StartLux-Decision 的 Instant，用 `scripts/run_train_instant.sh`（full-attention 层双向，线性层仍因果）。AutoThink 用 `scripts/run_train_autothink.sh`（保持因果，`THOUGHT_DROP` 默认 0.5）。多种子平均见 `scripts/average_lora.py`。本地对比对 `scripts/build_precision_mix.py` 不是 DecisionPivot，也不是 DI 分数。步骤、已引用的公开数字和风险见 [Decision Index 方案](di_plan.md)。本仓库还没有在同一套 DI 上测出新分数。
