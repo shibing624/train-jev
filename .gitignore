@@ -9,7 +9,10 @@ dist/
 .venv/
 
 # data, models, outputs
-data/
+data/*
+!data/README.md
+!data/train-jev-pk/
+!data/train-jev-classification-pk/
 models/
 runs/
 eval/

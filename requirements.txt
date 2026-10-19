@@ -6,6 +6,9 @@ numpy
 safetensors>=0.4
 huggingface-hub>=0.33
 scikit-learn
+# public training/evaluation dataset builders
+datasets
+pandas
 # Triton kernels for Qwen3.5's Gated DeltaNet layers (strongly recommended on CUDA; without it transformers falls
 # back to a slow PyTorch path). The reference run used 0.5.2.
 flash-linear-attention==0.5.2

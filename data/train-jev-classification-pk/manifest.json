@@ -1,0 +1,124 @@
+{
+  "name": "train-jev-classification-pk",
+  "format": "train-jev-eval-index-v1",
+  "evaluation_only": true,
+  "rows": 1300,
+  "tasks": {
+    "classification/ag_news": 100,
+    "classification/banking77": 100,
+    "classification/boolq": 100,
+    "classification/dair_emotion": 100,
+    "classification/massive_en": 100,
+    "classification/massive_zh": 100,
+    "classification/prompt_injection": 100,
+    "classification/sst5": 100,
+    "classification/tnews_zh": 100,
+    "classification/toxicity": 100,
+    "classification/xnli_en": 100,
+    "classification/xnli_zh": 100,
+    "classification/yelp_stars": 100
+  },
+  "available_inputs": 500,
+  "withheld_inputs": 800,
+  "input_hash_format": "SHA256 of compact UTF-8 JSON {kind,state,question,options}; preserve state key order",
+  "files": {
+    "rows.jsonl": {
+      "sha256": "21178f5ff08b746ad59bbed290a190d43a8cbea7b40c36e447c28d234a7c727e",
+      "bytes": 1190784
+    }
+  },
+  "sources": {
+    "ag_news": {
+      "repo": "fancyzhx/ag_news",
+      "url": "https://huggingface.co/datasets/fancyzhx/ag_news",
+      "split": "test",
+      "license": "unknown",
+      "raw_text_bundled": false
+    },
+    "dair_emotion": {
+      "repo": "dair-ai/emotion",
+      "url": "https://huggingface.co/datasets/dair-ai/emotion",
+      "split": "test",
+      "license": "other",
+      "raw_text_bundled": false
+    },
+    "banking77": {
+      "repo": "legacy-datasets/banking77",
+      "url": "https://huggingface.co/datasets/legacy-datasets/banking77",
+      "split": "test",
+      "license": "cc-by-4.0",
+      "raw_text_bundled": true
+    },
+    "massive_en": {
+      "repo": "mteb/amazon_massive_intent",
+      "url": "https://huggingface.co/datasets/mteb/amazon_massive_intent",
+      "split": "test/en",
+      "license": "apache-2.0",
+      "raw_text_bundled": true
+    },
+    "massive_zh": {
+      "repo": "mteb/amazon_massive_intent",
+      "url": "https://huggingface.co/datasets/mteb/amazon_massive_intent",
+      "split": "test/zh-CN",
+      "license": "apache-2.0",
+      "raw_text_bundled": true
+    },
+    "xnli_en": {
+      "repo": "facebook/xnli",
+      "url": "https://huggingface.co/datasets/facebook/xnli",
+      "split": "validation/en",
+      "license": "not-verified",
+      "raw_text_bundled": false
+    },
+    "xnli_zh": {
+      "repo": "facebook/xnli",
+      "url": "https://huggingface.co/datasets/facebook/xnli",
+      "split": "validation/zh",
+      "license": "not-verified",
+      "raw_text_bundled": false
+    },
+    "tnews_zh": {
+      "repo": "clue/clue",
+      "url": "https://huggingface.co/datasets/clue/clue",
+      "split": "tnews/validation",
+      "license": "unknown",
+      "raw_text_bundled": false
+    },
+    "sst5": {
+      "repo": "SetFit/sst5",
+      "url": "https://huggingface.co/datasets/SetFit/sst5",
+      "split": "test",
+      "license": "not-verified",
+      "raw_text_bundled": false
+    },
+    "yelp_stars": {
+      "repo": "Yelp/yelp_review_full",
+      "url": "https://huggingface.co/datasets/Yelp/yelp_review_full",
+      "split": "test",
+      "license": "other",
+      "raw_text_bundled": false
+    },
+    "boolq": {
+      "repo": "google/boolq",
+      "url": "https://huggingface.co/datasets/google/boolq",
+      "split": "validation",
+      "license": "cc-by-sa-3.0-attribution-pending",
+      "raw_text_bundled": false
+    },
+    "prompt_injection": {
+      "repo": "deepset/prompt-injections",
+      "url": "https://huggingface.co/datasets/deepset/prompt-injections",
+      "split": "test",
+      "license": "apache-2.0",
+      "raw_text_bundled": true
+    },
+    "toxicity": {
+      "repo": "google/civil_comments",
+      "url": "https://huggingface.co/datasets/google/civil_comments",
+      "split": "test",
+      "license": "cc0-1.0",
+      "raw_text_bundled": true
+    }
+  },
+  "redistribution_note": "Upstream text is included only for explicitly cleared sources; other rows are indices/labels. Never infer that the repository code license licenses all dataset content."
+}

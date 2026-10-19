@@ -2,7 +2,7 @@
 # Wide-choice eval (17-256 options): CLINC150 / BANKING77 / MASSIVE en, read with each > 16-option strategy.
 # Start a train-jev server first (CKPT=runs/jev-4b/best PORT=8020 bash scripts/run_serve.sh), then
 #   URL=http://127.0.0.1:8020 NAME=jev-4b bash scripts/run_wide.sh
-# Optional reference on the same rows (JEV-27B-VL behind the System One API, its own default strategy):
+# Optional reference on the same rows (autotrust/JEV-27B-VL behind the System One API):
 #   python -m trainjev.serve --proxy http://127.0.0.1:8011 --port 8021 --name JEV-27B-VL &
 #   REF_URL=http://127.0.0.1:8021 URL=... bash scripts/run_wide.sh
 set -euo pipefail

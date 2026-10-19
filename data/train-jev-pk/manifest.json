@@ -1,0 +1,61 @@
+{
+  "name": "train-jev-pk",
+  "format": "train-jev-eval-index-v1",
+  "evaluation_only": true,
+  "rows": 2494,
+  "tasks": {
+    "legacy/ag_news": 75,
+    "legacy/banking77": 75,
+    "legacy/boolq": 75,
+    "legacy/dair_emotion": 75,
+    "legacy/massive_en": 75,
+    "legacy/massive_zh": 75,
+    "legacy/sst5": 75,
+    "legacy/tnews_zh": 75,
+    "legacy/toxicity": 75,
+    "legacy/xnli_en": 75,
+    "legacy/xnli_zh": 75,
+    "legacy/yelp_stars": 75,
+    "public/aqua_rat": 149,
+    "public/helpsteer2": 148,
+    "public/paws": 150,
+    "public/qasc": 147,
+    "rules/alias_coreference": 166,
+    "rules/calendar_deadline": 166,
+    "rules/condition_count": 166,
+    "rules/explicit_evidence": 168,
+    "rules/ordered_routing": 168,
+    "rules/refund_conversion": 166
+  },
+  "available_inputs": 1594,
+  "withheld_inputs": 900,
+  "input_hash_format": "SHA256 of compact UTF-8 JSON {kind,state,question,options}; preserve state key order",
+  "files": {
+    "rows.jsonl": {
+      "sha256": "cae2c182ff59f221017bfdc8f7ed9cf25890887e000bab60bfa49a4cb9c7d1d1",
+      "bytes": 3519319
+    }
+  },
+  "sources": {
+    "public": {
+      "rows": 594,
+      "datasets": [
+        "google-research-datasets/paws",
+        "deepmind/aqua_rat",
+        "allenai/qasc",
+        "nvidia/HelpSteer2"
+      ]
+    },
+    "rules": {
+      "rows": 1000,
+      "license": "cc0-1.0",
+      "generated": true
+    },
+    "legacy": {
+      "rows": 900,
+      "raw_text_bundled": false,
+      "rebuild_from": "independently obtained 600-row classification PK source files"
+    }
+  },
+  "redistribution_note": "Upstream text is included only for explicitly cleared sources; other rows are indices/labels. Never infer that the repository code license licenses all dataset content."
+}

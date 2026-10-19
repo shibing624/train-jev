@@ -38,31 +38,31 @@ Models answer the same questions within each evaluation; some official API resul
 
 | Evaluation | train-jev-4b-lora<br>(Ours) | train-jev-27b-lora<br>(Ours) | Kev-4B | autotrust/JEV-27B-VL | TypeSafe Jev v1.13<br>(official API) |
 |---|---:|---:|---:|---:|---:|
-| **Sealed same-question PK** (2,494 questions, 22 tasks) | | | | | |
+| **[train-jev-pk](data/train-jev-pk/)** (2,494 questions, 22 tasks) | | | | | |
 | Task-macro accuracy ↑ | 74.18% | **78.72%** | 63.50% | 73.47% | – |
 | Public gold (PAWS / AQuA / QASC / HelpSteer2) ↑ | 63.25% | **70.65%** | 56.70% | 62.24% | – |
 | Legacy classification (12 tasks) ↑ | 69.89% | **74.89%** | 70.11% | 72.67% | – |
 | Exact rules (6 families) ↑ | 90.06% | **91.77%** | 54.79% | 82.57% | – |
 | Calibrated NLL ↓ | 0.751 | **0.629** | 1.018 | 0.761 | – |
 | ECE ↓ | 0.112 | **0.098** | 0.159 | 0.107 | – |
-| **13-dataset classification PK** (1,300 questions) | | | | | |
+| **[train-jev-classification-pk](data/train-jev-classification-pk/)** (13 scenarios, 1,300 questions) | | | | | |
 | Accuracy ↑ | 0.642 | 0.687 | 0.640 | 0.690 | **0.700** |
 | ECE ↓ | 0.050 | **0.048** | 0.083 | 0.094 | 0.130 |
 | Accuracy on the 8 sources Kev never saw ↑ | 0.600 | 0.640 | 0.570 | **0.645** | **0.645** |
-| **Kev transfer-v4** (656 questions from unseen sources) | | | | | |
+| **[Kev transfer-v4](https://github.com/jaredpalmer/kev)** (656 questions from unseen sources) | | | | | |
 | Accuracy ↑ | 0.805 | **0.858** | 0.817 | 0.852 | 0.857 |
 | ECE ↓ | 0.054 | **0.032** | 0.042 | 0.097 | – |
 | NLL ↓ | 0.596 | **0.377** | 0.435 | 0.460 | – |
-| **Decision Index 0.3, sampled score (6,000 questions)** ↑ | 41.5 | 56.1 | 38.4 | 54.1 | **59.7** |
-| **Decision Index 0.3, full-panel score (110,087 questions)** ↑ | 39.01 | **55.58** | – | – | – |
-| **Zero-shot image decisions** (5 vision sets) ↑ | 0.693 | 0.765 | not supported | **0.782** | – |
+| **[Decision Index 0.3, sampled score](https://github.com/apolinario/decision-index) (6,000 questions)** ↑ | 41.5 | 56.1 | 38.4 | 54.1 | **59.7** |
+| **[Decision Index 0.3, full-panel score](https://github.com/apolinario/decision-index) (110,087 questions)** ↑ | 39.01 | **55.58** | – | – | – |
+| **[Zero-shot image decisions](https://github.com/apolinario/decision-index)** (5 vision sets) ↑ | 0.693 | 0.765 | not supported | **0.782** | – |
 | Single-question p50 latency | 42 ms | 151 ms | **17 ms** | 96 ms | 370 ms (incl. network) |
 
-- **27B combines accuracy and calibration**: 78.72% sealed PK accuracy, a paired 5.25-point gain over JEV-27B-VL; transfer-v4 accuracy / ECE of 0.858 / 0.032 versus 0.852 / 0.097.
-- **4B is smaller and competitive**: 74.18% sealed PK accuracy versus 63.50% for the same-size Kev-4B, with 0.050 ECE on the classification PK for confidence-based decisions.
+- **27B combines accuracy and calibration**: 78.72% train-jev-pk accuracy, a paired 5.25-point gain over autotrust/JEV-27B-VL; transfer-v4 accuracy / ECE of 0.858 / 0.032 versus 0.852 / 0.097.
+- **4B is smaller and competitive**: 74.18% train-jev-pk accuracy versus 63.50% for the same-size Kev-4B, with 0.050 ECE on the classification PK for confidence-based decisions.
 - **Adapt the method to your workload**: compact LoRA + head training combines soft-distribution distillation, gold labels and rules, with an end-to-end path through calibration, evaluation and serving.
 
-> Decision Index is a composite score, not accuracy. The sample covers 35 benchmarks; the full run covers the public 37-benchmark text panel, not the private Full leaderboard. Some sealed PK tasks share sources or rule families with training, but not items. Latency stacks differ, so compare orders of magnitude only. Protocols, official API sources and limitations are in [the results guide](docs/results.en.md).
+> Decision Index is a composite score, not accuracy. The sample covers 35 benchmarks; the full run covers the public 37-benchmark text panel, not the private Full leaderboard. Some train-jev-pk tasks share training sources or rule families, but not items. Both local suites include complete indices and redistribution-cleared text; restore other inputs from their sources, as explained in [data/](data/). Latency stacks differ; protocols and limitations are in [the results guide](docs/results.en.md).
 
 ## Quick Start
 
@@ -114,7 +114,7 @@ BASE_REPO=Qwen/Qwen3.8-27B BASE_DIR=models/Qwen3.8-27B bash scripts/prepare_data
 GPUS=0,1,2,3 bash scripts/run_train_27b.sh
 ```
 
-These scripts cover initial distillation; the published models also include gold-and-rule continued training. See [the training guide](docs/training.en.md#11-the-v030-continued-training-recipe) for continued-training commands, data construction and calibration, and the HF package's `training_recipe.json` for sources and settings. Processed new data and their construction scripts are not yet distributed with the repository, so the method is reusable but exact released weights cannot currently be reproduced in one command.
+These scripts distill from the Qwen backbone; mix public gold or your own JSONL data to refine a business model. The [training guide](docs/training.en.md) provides the full workflow, a runnable PAWS conversion example, refinement and calibration. Published models use a broader gold-and-rule mixture; settings are in the HF package's `training_recipe.json`.
 
 For custom data, prepare JSONL with one question and target distribution per line, then mix it in with `--mix mydata.jsonl:2`:
 
@@ -146,7 +146,7 @@ The head is initialized from the corresponding backbone `lm_head` token rows, pr
 ## Roadmap
 
 - [x] Train, evaluate and release Qwen3.5-4B / Qwen3.8-27B LoRA models on Hugging Face
-- [x] Add public gold and rule data; 27B beats JEV-27B-VL on the sealed PK
+- [x] Add public gold and rule data; 27B beats autotrust/JEV-27B-VL on train-jev-pk
 - [ ] Broader public gold-labelled data to close the knowledge and language gaps to TypeSafe Jev v1.13
 - [ ] Full fine-tune of Qwen3.8-27B
 - [ ] Image inputs in the `/v1/systemone` server

@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 
 GPUS=${GPUS:-0,1,2}
 NPROC=$(echo "$GPUS" | tr ',' '\n' | wc -l)
-BASE=${BASE:-models/Qwen3.5-4B}
+BASE=${BASE:-Qwen/Qwen3.5-4B}
 DATA=${DATA:-data/jev-distill-corpus-v3}
 OUT=${OUT:-runs/jev-4b}
 MAX_STEPS=${MAX_STEPS:-0}
@@ -20,6 +20,13 @@ SEED=${SEED:-0}
 STEPS=${STEPS:-0}
 MICRO_TOKENS=${MICRO_TOKENS:-4096}
 SAVE_STATE_EVERY=${SAVE_STATE_EVERY:-100}
+LR=${LR:-1e-4}
+HEAD_LR=${HEAD_LR:-2e-4}
+data_args=()
+[[ -z "${INIT_ADAPTER:-}" ]] || data_args+=(--init_adapter "$INIT_ADAPTER")
+[[ -z "${MIX:-}" ]] || data_args+=(--mix "$MIX")
+[[ -z "${MIX_FRACTION:-}" ]] || data_args+=(--mix_fraction "$MIX_FRACTION")
+[[ -z "${KIND_COUNTS:-}" ]] || data_args+=(--kind_counts "$KIND_COUNTS")
 resume_args=()
 if [[ "${RESUME:-0}" == "1" ]]; then
     if [[ ! -f "$OUT/state/meta.json" && ! -f "$OUT/state.old/meta.json" ]]; then
@@ -37,8 +44,8 @@ torchrun --nproc_per_node "$NPROC" --master_port "$MASTER_PORT" -m trainjev.trai
     --out "$OUT" \
     --batch 128 \
     --lora_r 16 \
-    --lr 1e-4 \
-    --head_lr 2e-4 \
+    --lr "$LR" \
+    --head_lr "$HEAD_LR" \
     --rps_w 0.5 \
     --perm 0.3 \
     --placeholder_w 0.05 \
@@ -49,4 +56,4 @@ torchrun --nproc_per_node "$NPROC" --master_port "$MASTER_PORT" -m trainjev.trai
     --val_n "$VAL_N" \
     --max_steps "$MAX_STEPS" \
     --steps "$STEPS" --seed "$SEED" --save_state_every "$SAVE_STATE_EVERY" \
-    "${resume_args[@]}" "$@" 2>&1 | tee -a "$OUT/train.log"
+    "${data_args[@]}" "${resume_args[@]}" "$@" 2>&1 | tee -a "$OUT/train.log"

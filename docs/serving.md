@@ -5,13 +5,24 @@
 ## 启动服务
 
 ```bash
+# 脚本默认加载 Qwen/Qwen3.5-4B + shibing624/train-jev-4b-lora
+bash scripts/run_serve.sh
+
 # 从 Hugging Face 加载已发布的模型（自动下载底座、LoRA、决策头和温度）
 python -m trainjev.serve --base Qwen/Qwen3.5-4B --adapter shibing624/train-jev-4b-lora --port 8020
 python -m trainjev.serve --base Qwen/Qwen3.8-27B --adapter shibing624/train-jev-27b-lora --port 8020
 
 # 自己训练的 checkpoint
 CKPT=runs/jev-4b/best PORT=8020 bash scripts/run_serve.sh
+
+# 固定 adapter 版本，并通过尾随 CLI 参数调整 token 预算
+ADAPTER_REVISION=v0.3.0 STRATEGY=tournament bash scripts/run_serve.sh --batch_tokens 32768
 ```
+
+`run_serve.sh` 支持 `BASE`、`CKPT`、`ADAPTER_REVISION`、`DEVICE`、`NAME`、`HOST`、`PORT`、`STRATEGY`，
+尾随参数直接传给 `trainjev.serve`。脚本默认 `BASE=Qwen/Qwen3.5-4B`、`CKPT=shibing624/train-jev-4b-lora`、
+`DEVICE=cuda`、`NAME=train-jev-4b-lora`、`HOST=127.0.0.1`、`PORT=8020`、`STRATEGY=single`；adapter 版本默认不固定。
+下表是 Python CLI 的默认值，`--adapter` 没有默认值，与脚本不同。
 
 | 参数 | 默认值 | 说明 |
 |---|---|---|
@@ -25,7 +36,7 @@ CKPT=runs/jev-4b/best PORT=8020 bash scripts/run_serve.sh
 | `--batch_tokens` | 32768 | 批量处理多道题时每次前向的 padded token 数 |
 | `--calibration` | `<adapter>/calibration.json` | 温度文件 |
 | `--base_only` | 关 | 用未训练的底座（决策头从 `lm_head` 初始化）作为参照 |
-| `--proxy URL` | – | 把 JEV-27B-VL 的 `serve_decide.py` 服务挂到同一个 API 后面，方便对比 |
+| `--proxy URL` | – | 把 [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL) 的 `serve_decide.py` 服务挂到同一个 API 后面，方便对比 |
 
 显存：4B 模型 bf16 约 9 GB，24 GB 显卡即可；27B 模型约 54 GB，需要 80 GB 显卡。CUDA 上请安装
 `flash-linear-attention`，否则 Qwen3.5 的 Gated DeltaNet 层会走很慢的参考实现。
@@ -89,7 +100,7 @@ python examples/local_inference.py --base Qwen/Qwen3.5-4B --adapter shibing624/t
 ## 超过 16 个选项的选择题
 
 决策头只训练过 A–P 这 16 个标签。17–256 个选项时由 `--strategy`（或请求里的 `"strategy"`）决定怎么读，
-三种策略都来自 JEV-27B-VL 的 `serve_decide.py`：
+三种策略都来自 [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL) 的 `serve_decide.py`：
 
 | 策略 | 做法 | 前向次数（n 个选项） |
 |---|---|---:|
@@ -106,5 +117,8 @@ python examples/local_inference.py --base Qwen/Qwen3.5-4B --adapter shibing624/t
 | `permute` | **0.771** | 0.218 | 171 ms |
 
 `permute` 最准但偏保守（置信度偏低）；`tournament` 校准最好。分数据集的结果见
-[results.md](results.md#8-超过-16-个选项的选择题)。两个发布模型的公开评测分数都用 `tournament`，
-要复现请加 `--strategy tournament`。
+[results.md](results.md#8-超过-16-个选项的选择题)。两个发布模型的历史分类 PK / 宽选项评测用 `tournament`，
+要复现这些结果请加 `--strategy tournament`；完整公开 Decision Index 文本面板用 `single`，不能把不同协议混在一起。
+固定发布题库 [train-jev-pk](../data/train-jev-pk) / [train-jev-classification-pk](../data/train-jev-classification-pk)
+请按 [评测文档](evaluation.md#6-train-jev-pktrain-jev-classification-pk-与宽选项)恢复缺失输入并用本地 HF 评测脚本运行，
+保留原始问题与评分等级说明，不用 HTTP 改写代替该协议，也不保证所有 GPU / batch 推理栈的概率逐位一致。

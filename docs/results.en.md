@@ -12,7 +12,7 @@ were run by us on the same hardware (one NVIDIA H20 each) unless marked *board* 
 | Kev-4B | [jaredpalmer/kev](https://github.com/jaredpalmer/kev) 4B release, served with `kev.serve` |
 | **train-jev-4b-lora** | [shibing624/train-jev-4b-lora](https://huggingface.co/shibing624/train-jev-4b-lora), Qwen3.5-4B + LoRA (this repository) |
 | **train-jev-27b-lora** | [shibing624/train-jev-27b-lora](https://huggingface.co/shibing624/train-jev-27b-lora), Qwen3.8-27B + LoRA (this repository) |
-| JEV-27B-VL | [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL), served with its own `serve_decide.py` (System 1, thinking off) |
+| autotrust/JEV-27B-VL | [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL), served with its own `serve_decide.py` (System 1, thinking off) |
 | Jev 1.13 | TypeSafe's hosted API |
 
 ## 1. Training trajectory
@@ -48,12 +48,12 @@ Calibrated metrics; `choice` rows with > 16 options are excluded.
 | test_set_30k | Qwen3.5-4B (untrained) | 0.637 | 0.658 | 0.689 | 0.816 | 0.511 | 0.019 | 1.371 |
 | | Kev-4B | 0.387 | 0.364 | 0.781 | 0.861 | 0.575 | 0.334 | 0.779 |
 | | **train-jev-4b-lora** | **0.022** | **0.018** | **0.962** | **0.995** | **0.908** | **0.897** | **0.104** |
-| | JEV-27B-VL | 0.021 | 0.017 | 0.969 | 0.996 | 0.908 | 0.894 | 0.098 |
+| | autotrust/JEV-27B-VL | 0.021 | 0.017 | 0.969 | 0.996 | 0.908 | 0.894 | 0.098 |
 | | train-jev-27b-lora | 0.019 | 0.016 | 0.968 | 0.996 | 0.916 | 0.905 | 0.096 |
 | ood | Qwen3.5-4B (untrained) | 0.884 | – | 0.542 | 0.558 | 0.413 | 0.000 | 1.227 |
 | | Kev-4B | 0.624 | – | 0.768 | 0.703 | 0.642 | 0.471 | 0.389 |
 | | **train-jev-4b-lora** | **0.311** | – | **0.932** | **0.982** | **0.888** | 0.588 | 0.390 |
-| | JEV-27B-VL | 0.108 | – | 0.970 | 0.995 | 0.913 | 0.588 | 0.432 |
+| | autotrust/JEV-27B-VL | 0.108 | – | 0.970 | 0.995 | 0.913 | 0.588 | 0.432 |
 | | train-jev-27b-lora | 0.110 | – | 0.974 | 0.996 | 0.935 | 0.647 | 0.367 |
 
 *Reported* by the JEV-27B card on the full splits: KL 0.019 (all), ≈ 0.017 (Jev-labelled), OOD KL 0.104.
@@ -77,7 +77,7 @@ every row below is comparable, but **none of them equals the official Decision I
 |---|---:|---:|---:|---:|---:|---:|
 | Kev-4B (ours, sample) | 38.43 | 0.314 | 0.355 | 0.457 | 0.565 | 0.166 |
 | **train-jev-4b-lora (ours, sample)** | **40.35** | 0.322 | 0.394 | 0.415 | 0.584 | 0.287 |
-| JEV-27B-VL (ours, sample) | 54.11 | 0.452 | 0.534 | 0.549 | 0.739 | 0.413 |
+| autotrust/JEV-27B-VL (ours, sample) | 54.11 | 0.452 | 0.534 | 0.549 | 0.739 | 0.413 |
 | **train-jev-27b-lora (ours, sample)** | **54.57** | 0.438 | 0.552 | 0.567 | 0.737 | 0.415 |
 | *Kev 4B r10 (board)* | *39.53* | 0.292 | 0.418 | 0.466 | 0.550 | 0.179 |
 | *Sieve 4B (board)* | *51.45* | 0.377 | 0.539 | 0.637 | 0.667 | 0.283 |
@@ -87,7 +87,7 @@ every row below is comparable, but **none of them equals the official Decision I
 | *Kev 27B (board)* | *58.58* | 0.507 | 0.626 | 0.586 | 0.726 | 0.427 |
 | *Jev 1.13 (board)* | *59.72* | 0.593 | 0.592 | 0.572 | 0.751 | 0.391 |
 
-Sanity check of the sampled protocol: our Kev-4B is 38.4 against the board's 39.5, and our JEV-27B-VL is 54.1 against
+Sanity check of the sampled protocol: our Kev-4B is 38.4 against the board's 39.5, and our autotrust/JEV-27B-VL is 54.1 against
 the board's JEV-27B at 55.0. The sample is accurate to about a point at the index level; individual benchmarks
 on ~150 rows each are noisy.
 
@@ -98,14 +98,14 @@ most of the gap in Knowledge & Reasoning and Language Understanding. Closing tha
 
 ## 4. Kev transfer-v4
 
-`evals/v4/transfer-v4` from [jaredpalmer/kev](https://github.com/jaredpalmer/kev): 656 questions from sources Kev never
+[jaredpalmer/kev's transfer-v4](https://github.com/jaredpalmer/kev) (`evals/v4/transfer-v4`): 656 questions from sources Kev never
 trained on, run with `python -m kev.benchmark --remote <server>`.
 
 | model | accuracy | ECE | NLL |
 |---|---:|---:|---:|
 | Kev-4B | 0.817 | **0.042** | 0.435 |
 | train-jev-4b-lora | 0.779 | 0.075 | 0.745 |
-| JEV-27B-VL | **0.852** | 0.097 | 0.460 |
+| autotrust/JEV-27B-VL | **0.852** | 0.097 | 0.460 |
 | train-jev-27b-lora | 0.851 | 0.053 | **0.411** |
 | *Jev 1.13 (reported in the Kev repo)* | *0.857* | | |
 
@@ -114,7 +114,7 @@ questions; train-jev's distillation recipe stays closer to Jev's distributions.
 
 ## 5. Zero-shot image decisions
 
-Five public Decision Index vision sets, 300 items each (first 300 by `sha256(id)`), choice questions, chance-corrected
+Five public [Decision Index](https://github.com/apolinario/decision-index) vision sets, 300 items each (first 300 by `sha256(id)`), choice questions, chance-corrected
 skill. The LoRA and head were trained on **text only**; for images we load the full Qwen3.5 VL model, merge the LoRA
 into its language model, and leave the vision tower untouched (`trainjev/eval_vision.py`).
 
@@ -122,19 +122,24 @@ into its language model, and leave the vision tower untouched (`trainjev/eval_vi
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Qwen3.5-4B (untrained) | 0.682 | 0.454 | 0.510 | 0.667 | 0.847 | 0.632 | 0.758 |
 | **train-jev-4b-lora** | 0.732 | 0.506 | 0.608 | 0.729 | 0.913 | **0.697** | 0.802 |
-| JEV-27B-VL | 0.743 | 0.634 | 0.711 | 0.849 | 0.973 | 0.782 | 0.859 |
+| autotrust/JEV-27B-VL | 0.743 | 0.634 | 0.711 | 0.849 | 0.973 | 0.782 | 0.859 |
 | **train-jev-27b-lora** | **0.770** | 0.568 | 0.673 | 0.822 | 0.967 | 0.760 | 0.844 |
 
 Text-only distillation improves every vision set (+6.5 points mean skill), i.e. what the head learns about *how to
 decide* transfers across modalities. Kev drops the vision tower at load time and cannot take images.
 
-## 6. 13-dataset classification PK
+## 6. train-jev-classification-pk (13-dataset classification PK)
 
 1,300 rows (the first 100 of each scenario after a seed-0 shuffle) from 13 public datasets. Every system gets the same
 text (first 4,000 characters), the dataset's label names and one fixed question per primitive; there is no per-task
-prompt engineering. `scripts/pk_build.py` rebuilds the suite byte-for-byte from the Hugging Face Hub, and
-`scripts/pk_benchmark.py` runs any `/v1/systemone` endpoint and prints the paired report. Re-running train-jev-4b-lora
-through the released script reproduces the stored probabilities (max |Δp| 6e-8).
+prompt engineering. The fixed release is now [train-jev-classification-pk](../data/train-jev-classification-pk):
+all indices and labels, with 500 inputs included and 800 index-only rows to restore from source files built by
+`scripts/pk_build.py --out data/pk`. See the dataset README for upstream licenses and attribution; text with uncleared
+licenses is not bundled. Historically, `scripts/pk_build.py` rebuilt the suite byte-for-byte from the Hugging Face Hub.
+`scripts/pk_benchmark.py` remains useful for server comparisons on the original source files of up to 600 rows each.
+In the historically checked environment, re-running train-jev-4b-lora reproduced the stored probabilities (max |Δp| 6e-8);
+this is not a strict equivalence guarantee for every GPU / batching stack. Restore and evaluate the published dataset locally with HF as described in
+the [evaluation guide](evaluation.en.md#6-train-jev-pk-train-jev-classification-pk-and-wide-diagnostics), without changing the historical server protocol or metrics below.
 
 | scenario | primitive | lang | labels | source | in Kev's training sources |
 |---|---|---|---:|---|:---:|
@@ -150,7 +155,7 @@ through the released script reproduces the stored probabilities (max |Δp| 6e-8)
 | prompt_injection | boolean | en | 2 | `deepset/prompt-injections` test | |
 | toxicity | boolean | en | 2 | `google/civil_comments` test (balanced 50/50) | |
 
-| | Jev 1.13 (API) | JEV-27B-VL | Kev-4B | **train-jev-4b-lora** | train-jev-27b-lora |
+| | Jev 1.13 (API) | autotrust/JEV-27B-VL | Kev-4B | **train-jev-4b-lora** | train-jev-27b-lora |
 |---|---:|---:|---:|---:|---:|
 | accuracy | 0.700 | 0.690 | 0.640 | 0.647 | **0.678** |
 | 95% CI | [0.675, 0.724] | [0.664, 0.715] | [0.614, 0.666] | [0.621, 0.672] | [0.652, 0.703] |
@@ -164,7 +169,7 @@ through the released script reproduces the stored probabilities (max |Δp| 6e-8)
 
 Per scenario:
 
-| scenario | Jev 1.13 | JEV-27B-VL | Kev-4B | train-jev-4b-lora | train-jev-27b-lora |
+| scenario | Jev 1.13 | autotrust/JEV-27B-VL | Kev-4B | train-jev-4b-lora | train-jev-27b-lora |
 |---|---:|---:|---:|---:|---:|
 | ag_news ✓ | 0.86 | 0.85 | 0.87 | 0.89 | 0.87 |
 | banking77 ✓ | 0.81 | 0.75 | 0.81 | 0.69 | 0.73 |
@@ -194,19 +199,20 @@ cell is 100 rows (±~9 points at 95%), so read single scenarios with care.
 - **Reproducibility.** The code in this repository was checked against the original experiment code on the same
   inputs: identical training loss for the first 11 steps, identical evaluation logits on all 9,000 corpus rows, and
   identical server and vision outputs (|Δ| = 0).
+  These are historical checks in a specific environment, not strict probability-equivalence guarantees across GPUs, library versions, precision or batching stacks.
 
 ## 8. Wide-choice questions (17–256 options)
 
 How the many-class PK scenarios were read, and what is known so far (100 rows each, GPU, from the PK runs above):
 
-| scenario | options | JEV-27B-VL (`single`) | ECE | train-jev-4b-lora (`tournament`) | ECE |
+| scenario | options | autotrust/JEV-27B-VL (`single`) | ECE | train-jev-4b-lora (`tournament`) | ECE |
 |---|---:|---:|---:|---:|---:|
 | banking77 | 77 | 0.75 | 0.101 | 0.69 | 0.153 |
 | massive_en | 59 | 0.83 | 0.051 | 0.73 | 0.107 |
 | massive_zh | 59 | 0.77 | 0.064 | 0.66 | 0.063 |
 
 The two columns differ in both model size and read-out strategy, so this table does not isolate the strategy. JEV's
-model card reports `single` on JEV-27B-VL down to 150 options (CLINC150, all intents: 89.5% names only, 93.8% with a
+model card reports `single` on autotrust/JEV-27B-VL down to 150 options (CLINC150, all intents: 89.5% names only, 93.8% with a
 one-line description; ECE 0.079 / 0.034).
 
 Checks done for train-jev-4b-lora:
@@ -257,7 +263,7 @@ Head lr 2e-4, micro-token budget 4,096 and no gradient checkpointing for both; t
 | transfer-v4 accuracy (656 rows) | **0.77896** | 0.76220 | ↑ |
 | transfer-v4 ECE | 0.07468 | **0.06520** | ↓ |
 | transfer-v4 NLL | 0.74455 | **0.66690** | ↓ |
-| 13-dataset PK accuracy (1,300 rows) | **0.64692** | 0.61077 | ↑ |
+| [train-jev-classification-pk](../data/train-jev-classification-pk) accuracy (13 datasets, 1,300 rows) | **0.64692** | 0.61077 | ↑ |
 | PK: 5 Kev-seen sources (500 rows) | **0.718** | 0.672 | ↑ |
 | PK: 8 Kev-unseen sources (800 rows) | **0.6025** | 0.5725 | ↑ |
 | vision mean skill (5 sets, equal weight) | **0.69729** | 0.68757 | ↑ |
@@ -287,10 +293,10 @@ gold data would also lose. The 2e-6 learning rate came from a short 400-step swe
 
 Qwen3.8-27B, jev-distill-corpus-v3, global batch 128, max length 2,048, micro-token budget 16,384, gradient
 checkpointing on, r16, LoRA / head lr 1e-4 / 2e-4, 4x H20, seed 0, 5,123 steps. The lowest validation KL is at step
-5,123. PK, transfer-v4 and Decision Index use the `tournament` readout for > 16 options; JEV-27B-VL's numbers use
+5,123. PK, transfer-v4 and Decision Index use the `tournament` readout for > 16 options; autotrust/JEV-27B-VL's numbers use
 `single` on a different backend, so this table is not a readout ablation.
 
-| metric | train-jev-4b-lora | JEV-27B-VL | **train-jev-27b-lora** | |
+| metric | train-jev-4b-lora | autotrust/JEV-27B-VL | **train-jev-27b-lora** | |
 |---|---:|---:|---:|:---:|
 | best validation KL (4,000 rows) | 0.0160 | – | **0.01423** | ↓ |
 | test_set_30k KL (6,000 rows, calibrated) | 0.02239 | 0.02075 | **0.01853** | ↓ |
@@ -300,7 +306,7 @@ checkpointing on, r16, LoRA / head lr 1e-4 / 2e-4, 4x H20, seed 0, 5,123 steps. 
 | transfer-v4 accuracy (656 rows) | 0.77896 | **0.85213** | 0.85061 | ↑ |
 | transfer-v4 ECE | 0.07468 | 0.09731 | **0.05308** | ↓ |
 | transfer-v4 NLL | 0.74455 | 0.46022 | **0.41130** | ↓ |
-| 13-dataset PK accuracy (1,300 rows) | 0.64692 | **0.690** | 0.67769 | ↑ |
+| [train-jev-classification-pk](../data/train-jev-classification-pk) accuracy (13 datasets, 1,300 rows) | 0.64692 | **0.690** | 0.67769 | ↑ |
 | PK ECE | **0.07569** | 0.094 | 0.10294 | ↓ |
 | PK: 5 Kev-seen sources (500 rows) | 0.718 | **0.762** | 0.754 | ↑ |
 | PK: 8 Kev-unseen sources (800 rows) | 0.6025 | **0.645** | 0.630 | ↑ |
@@ -319,7 +325,7 @@ Validation trajectory (`--val_n 4000`, cumulative wall time):
 - **Against train-jev-4b-lora**, the 27B model is better on almost everything: OOD KL −0.20, Decision Index +14.2,
   transfer-v4 accuracy +7.2 points (71/24 unique rows, p = 1.5e-6), PK accuracy +3.1 points (104/64, p = 0.0025),
   vision skill +6.3 points. It is worse on PK ECE (0.103 vs 0.076) and slower (82 vs 43 ms).
-- **Against JEV-27B-VL**, accuracy is level: transfer-v4 16/17 unique rows (p = 1), PK 27/43 (p = 0.072), Decision Index
+- **Against autotrust/JEV-27B-VL**, accuracy is level: transfer-v4 16/17 unique rows (p = 1), PK 27/43 (p = 0.072), Decision Index
   54.57 vs 54.11 (no confidence interval). Calibration on transfer-v4 is clearly better (ECE 0.053 vs 0.097, NLL 0.411
   vs 0.460); OOD KL is about the same (0.110 vs 0.108).
 - **The weak spot is vision**: mean skill 0.760 vs 0.782, lower on BLINK, RealWorldQA, CharXiv and InfoVQA, higher
@@ -329,7 +335,7 @@ Validation trajectory (`--val_n 4000`, cumulative wall time):
 
 Both **v0.2.0 LoRA release checkpoints** answered the same ordered **110,087 requests / 272,229 subquestions**.
 This covers every scoreable text request in the exported public 37-benchmark panel, including **501 HLE text requests and 4,000 HoVer requests**.
-It is neither full multimodal HLE nor the maintainers' Full leaderboard with private tests. Kev, JEV-27B-VL and the TypeSafe API were not rerun on this input.
+It is neither full multimodal HLE nor the maintainers' Full leaderboard with private tests. Kev, autotrust/JEV-27B-VL and the TypeSafe API were not rerun on this input.
 
 Both used HF transformers with a merged bf16 text backbone, fp32 decision head, explicit `single`, and 32,768 context/batch-token budgets.
 Original per-kind calibration temperatures were retained: no new training, refitting, truncation or benchmark-dependent strategy.
@@ -400,12 +406,19 @@ set only (highest macro gain with no >16-option regression); both sizes picked s
 | 768 | +4.70 [3.51, 5.87] | +9.72 | +0.97 | 0.00 |
 | 1,024 | +4.21 [3.02, 5.35] | +9.60 | +0.42 | −1.11 |
 
-### 13.2 Sealed same-question PK (2,494 questions, 22 tasks)
+### 13.2 train-jev-pk (2,494 questions, 22 tasks)
+
+[train-jev-pk](../data/train-jev-pk) is the fixed benchmark historically called “sealed same-question PK”; the rename changes no inputs, labels or scores.
+Every ordered index and label is published, with 1,594 inputs included and 900 index-and-label-only rows to restore
+from source files generated by `scripts/pk_build.py --out data/pk`, using fixed row indices and verified input hashes.
+See the dataset README and [evaluation guide](evaluation.en.md#6-train-jev-pk-train-jev-classification-pk-and-wide-diagnostics)
+for source licenses, attribution and restoration. It includes public sources and rule families seen in training:
+not all 22 tasks are independent of training sources. These rows have been used for model comparison and must not be reused for training, checkpoint selection or calibration fitting.
 
 Six models, identical inputs, each with its native stack and shipped temperatures. Per-task accuracy and all paired
 comparisons: [reports/v0.3.0/external_final2.json](../reports/v0.3.0/external_final2.json); summary table in the
-[README](../README_EN.md#v030-continued-training-with-gold-and-rule-data).
-27B v0.3.0 vs JEV-27B-VL: paired +5.25pp [4.01, 6.50]; vs 27B v0.2.0 +4.73pp [3.71, 5.80]; vs 4B v0.3.0 +4.54pp [3.15, 5.91].
+[README](../README_EN.md#results).
+27B v0.3.0 vs autotrust/JEV-27B-VL: paired +5.25pp [4.01, 6.50]; vs 27B v0.2.0 +4.73pp [3.71, 5.80]; vs 4B v0.3.0 +4.54pp [3.15, 5.91].
 
 ### 13.3 Historical suites (same protocol as §2–§6)
 
@@ -418,7 +431,7 @@ jev-distill teacher, so they are not used for KL.
 | test_set_30k KL (raw) ↓ | 0.0224 | 0.0230 | 0.0185 | 0.0185 |
 | OOD KL (raw) ↓ | 0.312 | 0.483 | 0.110 | 0.123 |
 | OOD choice top-1 ↑ | 0.888 | 0.900 | 0.935 | 0.940 |
-| 13-dataset PK accuracy ↑ | 0.647 | 0.642 | 0.678 | 0.687 |
+| [train-jev-classification-pk](../data/train-jev-classification-pk) (13 datasets) accuracy ↑ | 0.647 | 0.642 | 0.678 | 0.687 |
 | PK ECE ↓ | 0.076 | 0.050 | 0.103 | 0.048 |
 | PK: 8 sources Kev never saw ↑ | 0.603 | 0.600 | 0.630 | 0.640 |
 | transfer-v4 accuracy ↑ | 0.779 | 0.805 | 0.851 | 0.858 |
@@ -443,9 +456,9 @@ jev-distill teacher, so they are not used for KL.
   ChessBench raw accuracy falls 16.96% → 16.16%; HLE falls 7.39% → 5.99% (501 text questions, p=0.189, not a significant decline). HLE skill is clipped to zero in both versions below chance=16.41%.
   ACOS target per-review F1 / DI skill improves while the field-level accuracy diagnostic falls about 0.14pp; the two uncorrected significant diagnostic declines do not mean that HLE or ACOS target F1 declined significantly.
 - Question-level diagnostic intervals are not DI-index confidence intervals; McNemar tests are not corrected for multiple comparisons. All areas improving does not mean all tasks improve.
-  The full run still covers only the public 37-benchmark scoreable text panel, not private Full or full multimodal HLE. JEV-27B-VL has only the historical 6,000-question result, no full-panel pairing.
+  The full run still covers only the public 37-benchmark scoreable text panel, not private Full or full multimodal HLE. autotrust/JEV-27B-VL has only the historical 6,000-question result, no full-panel pairing.
   Scores, per-benchmark skill, protocol, input hashes and merge audit: [di37_results.json](../reports/v0.3.0/di37_results.json).
 - The OOD KL increase is the expected cost of gold supervision moving away from the Jev teacher: accuracy does not drop, and
   refitting temperatures on the jev-distill calibration split gives 0.472 / 0.121 (4B / 27B), close to the raw values.
 - Conclusion: the v0.3.0 recipe gives small, consistent out-of-distribution gains (transfer-v4, Decision Index, calibration),
-  much smaller than on the sealed PK, which contains in-family rule items and public-gold sources seen in training.
+  much smaller than on [train-jev-pk](../data/train-jev-pk), which contains in-family rule items and public-gold sources seen in training.

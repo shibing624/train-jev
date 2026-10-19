@@ -5,13 +5,25 @@
 ## Start a server
 
 ```bash
+# script defaults: Qwen/Qwen3.5-4B + shibing624/train-jev-4b-lora
+bash scripts/run_serve.sh
+
 # a released model from Hugging Face (downloads the base, the LoRA, the decision head and the temperatures)
 python -m trainjev.serve --base Qwen/Qwen3.5-4B --adapter shibing624/train-jev-4b-lora --port 8020
 python -m trainjev.serve --base Qwen/Qwen3.8-27B --adapter shibing624/train-jev-27b-lora --port 8020
 
 # a checkpoint you trained yourself
 CKPT=runs/jev-4b/best PORT=8020 bash scripts/run_serve.sh
+
+# pin the adapter release and pass a token budget as a trailing CLI argument
+ADAPTER_REVISION=v0.3.0 STRATEGY=tournament bash scripts/run_serve.sh --batch_tokens 32768
 ```
+
+`run_serve.sh` supports `BASE`, `CKPT`, `ADAPTER_REVISION`, `DEVICE`, `NAME`, `HOST`, `PORT` and `STRATEGY`,
+and forwards trailing arguments to `trainjev.serve`. Script defaults are `BASE=Qwen/Qwen3.5-4B`,
+`CKPT=shibing624/train-jev-4b-lora`, `DEVICE=cuda`, `NAME=train-jev-4b-lora`, `HOST=127.0.0.1`, `PORT=8020`
+and `STRATEGY=single`; the adapter revision is unpinned by default. The table below lists Python CLI defaults:
+unlike the script, the CLI has no default `--adapter`.
 
 | flag | default | meaning |
 |---|---|---|
@@ -25,7 +37,7 @@ CKPT=runs/jev-4b/best PORT=8020 bash scripts/run_serve.sh
 | `--batch_tokens` | 32768 | padded tokens per forward pass when batching questions |
 | `--calibration` | `<adapter>/calibration.json` | temperatures file |
 | `--base_only` | off | serve the untrained backbone (head initialised from `lm_head`) as a reference |
-| `--proxy URL` | – | put a JEV-27B-VL `serve_decide.py` server behind the same API, for side-by-side comparison |
+| `--proxy URL` | – | put an [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL) `serve_decide.py` server behind the same API, for side-by-side comparison |
 
 Memory: the 4B model in bf16 is about 9 GB and fits a 24 GB GPU; the 27B model is about 54 GB and needs an 80 GB GPU.
 On CUDA install `flash-linear-attention`; without it the Gated DeltaNet layers of Qwen3.5 run a slow reference path.
@@ -91,7 +103,7 @@ python examples/local_inference.py --base Qwen/Qwen3.5-4B --adapter shibing624/t
 ## Choices with more than 16 options
 
 The decision head is trained on the labels A–P only. For 17–256 options `--strategy` (or `"strategy"` in the request)
-picks how the question is read; all three come from JEV-27B-VL's `serve_decide.py`:
+picks how the question is read; all three come from [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL)'s `serve_decide.py`:
 
 | strategy | how | forward passes (n options) |
 |---|---|---:|
@@ -108,5 +120,9 @@ Measured on train-jev-4b-lora, 600 questions each from CLINC150 (150 options), B
 | `permute` | **0.771** | 0.218 | 171 ms |
 
 `permute` is the most accurate but under-confident; `tournament` is the best calibrated. Per-dataset numbers are in
-[results.en.md](results.en.md#8-wide-choice-questions-17256-options). The published benchmark numbers for both models use
-`tournament`; pass `--strategy tournament` to reproduce them.
+[results.en.md](results.en.md#8-wide-choice-questions-17256-options). Both models' historical classification PK / wide-choice results use
+`tournament`; pass `--strategy tournament` to reproduce those runs. The full public Decision Index text panel uses `single`;
+do not mix these protocols. For the fixed [train-jev-pk](../data/train-jev-pk) / [train-jev-classification-pk](../data/train-jev-classification-pk)
+releases, restore missing inputs and use the local HF evaluator described in the
+[evaluation guide](evaluation.en.md#6-train-jev-pk-train-jev-classification-pk-and-wide-diagnostics).
+Preserve the original question / score legend instead of substituting HTTP rewriting; bit-identical probabilities are not guaranteed across GPU / batching stacks.
