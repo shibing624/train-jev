@@ -68,6 +68,27 @@ def expect_error(body, uploads=None, status=400, enabled=True):
     return str(error.value)
 
 
+@pytest.mark.parametrize("overflow", [False, True])
+def test_prepared_images_are_closed_if_asset_validation_fails(png, monkeypatch, overflow):
+    prepared = []
+    original = assets_module._prepare_image
+
+    def record(*args, **kwargs):
+        asset = original(*args, **kwargs)
+        prepared.append(asset.image)
+        return asset
+
+    monkeypatch.setattr(assets_module, "_prepare_image", record)
+    body = request_body(png, state=["<photo>", "<bad>"])
+    body["assets"]["<bad>"] = {"format": "png", "data_base64": "invalid"}
+    if overflow:
+        monkeypatch.setattr(assets_module, "MAX_PROCESSED_BYTES", 1)
+    expect_error(body, status=413 if overflow else 400)
+    assert len(prepared) == 1
+    with pytest.raises(ValueError, match="closed"):
+        prepared[0].getpixel((0, 0))
+
+
 @pytest.mark.parametrize("fmt", ["png", "jpg", "jpeg"])
 def test_rgb_lossless_png_and_marker_bundle(png, jpeg, fmt):
     raw = png if fmt == "png" else jpeg

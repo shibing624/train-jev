@@ -278,3 +278,21 @@ def test_setup_vision_uses_full_loader_and_shares_text_body(monkeypatch):
     srv.setup(srv.parse_args(['--vision', '--base_only', '--device', 'cpu']))
     assert srv.S['body'] is text and srv.S['vision'] is vision and srv.S['processor'] is processor
     srv.S.clear()
+
+
+@pytest.mark.parametrize('transport', ['multipart', 'base64'])
+def test_image_example_uses_compatible_request(client, tmp_path, monkeypatch, transport):
+    from examples.image_decisions import main
+
+    path = tmp_path / 'door.png'
+    path.write_bytes(raw_image())
+
+    def send(url, **kwargs):
+        assert url == 'http://127.0.0.1:8020/v1/systemone'
+        kwargs.pop('timeout')
+        return client.post('/v1/systemone', **kwargs)
+
+    monkeypatch.setattr('examples.image_decisions.httpx.post', send)
+    result = main(['--image', str(path), '--transport', transport])
+    assert result['person_present']['type'] == 'noul'
+    assert set(result['carrying']['probabilities']) == {'package', 'bag', 'nothing'}

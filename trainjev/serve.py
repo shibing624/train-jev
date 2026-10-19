@@ -75,7 +75,7 @@ def setup(a):
         return
     adapter = "" if a.base_only else resolve_checkpoint(a.adapter, a.adapter_revision)
     a.adapter = adapter
-    dtype = torch.bfloat16 if a.device == "cuda" else torch.float32
+    dtype = torch.bfloat16 if torch.device(a.device).type == "cuda" else torch.float32
     if a.vision:
         tok, body, head, processor, vision = load_vision_model(a.base, adapter, dtype=dtype, device=a.device)
     else:
@@ -369,8 +369,7 @@ def build_app():
             return JSONResponse({"error": "Insufficient inference memory; reduce image count or context"},
                                 status_code=503)
         finally:
-            for image in assets.markers.values():
-                image.image.close()
+            assets.close()
         return {"model": S["args"].name, "answers": answers, "usage": {"input_tokens": ntok},
                 "latency_ms": 1000 * (time.perf_counter() - t0)}
 

@@ -19,10 +19,10 @@ CKPT=runs/jev-4b/best PORT=8020 bash scripts/run_serve.sh
 ADAPTER_REVISION=v0.3.0 STRATEGY=tournament bash scripts/run_serve.sh --batch_tokens 32768
 
 # text and image decisions on the same endpoint, using the full VL backbone
-bash scripts/run_serve.sh --vision
+VISION=1 bash scripts/run_serve.sh
 ```
 
-`run_serve.sh` supports `BASE`, `CKPT`, `ADAPTER_REVISION`, `DEVICE`, `NAME`, `HOST`, `PORT` and `STRATEGY`,
+`run_serve.sh` supports `BASE`, `CKPT`, `ADAPTER_REVISION`, `DEVICE`, `NAME`, `HOST`, `PORT`, `STRATEGY` and `VISION`,
 and forwards trailing arguments to `trainjev.serve`. Script defaults are `BASE=Qwen/Qwen3.5-4B`,
 `CKPT=shibing624/train-jev-4b-lora`, `DEVICE=cuda`, `NAME=train-jev-4b-lora`, `HOST=127.0.0.1`, `PORT=8020`
 and `STRATEGY=single`; the adapter revision is unpinned by default. The table below lists Python CLI defaults:
@@ -160,6 +160,8 @@ python examples/client.py --url http://127.0.0.1:8020             # one ticket, 
 python examples/batch_decisions.py --url http://127.0.0.1:8020    # several decisions about one state
 python examples/smoke_systemone.py --url http://127.0.0.1:8020    # three fixed questions with expected answers
 python examples/wide_choices.py --url http://127.0.0.1:8020 --compare   # 20 options, all three strategies
+python examples/image_decisions.py --image door-camera.jpg           # TypeSafe multipart image
+python examples/image_decisions.py --image door-camera.jpg --transport base64  # JSON/base64
 ```
 
 Without a server, one decision straight from Python:

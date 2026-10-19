@@ -18,7 +18,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install
         run: |
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
           grep -vE '^(torch|flash-linear-attention|torchvision)' requirements.txt > /tmp/req.txt
           pip install -r /tmp/req.txt
           pip install pytest ruff

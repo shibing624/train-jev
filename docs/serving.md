@@ -19,10 +19,10 @@ CKPT=runs/jev-4b/best PORT=8020 bash scripts/run_serve.sh
 ADAPTER_REVISION=v0.3.0 STRATEGY=tournament bash scripts/run_serve.sh --batch_tokens 32768
 
 # 同时支持文本和图片（完整 VL 底座 + 原 LoRA/head/温度，不重新训练）
-bash scripts/run_serve.sh --vision
+VISION=1 bash scripts/run_serve.sh
 ```
 
-`run_serve.sh` 支持 `BASE`、`CKPT`、`ADAPTER_REVISION`、`DEVICE`、`NAME`、`HOST`、`PORT`、`STRATEGY`，
+`run_serve.sh` 支持 `BASE`、`CKPT`、`ADAPTER_REVISION`、`DEVICE`、`NAME`、`HOST`、`PORT`、`STRATEGY`、`VISION`，
 尾随参数直接传给 `trainjev.serve`。脚本默认 `BASE=Qwen/Qwen3.5-4B`、`CKPT=shibing624/train-jev-4b-lora`、
 `DEVICE=cuda`、`NAME=train-jev-4b-lora`、`HOST=127.0.0.1`、`PORT=8020`、`STRATEGY=single`；adapter 版本默认不固定。
 下表是 Python CLI 的默认值，`--adapter` 没有默认值，与脚本不同。
@@ -158,6 +158,8 @@ python examples/client.py --url http://127.0.0.1:8020             # 一张工单
 python examples/batch_decisions.py --url http://127.0.0.1:8020    # 同一段 state 上的多个决策
 python examples/smoke_systemone.py --url http://127.0.0.1:8020    # 三道答案已知的固定题
 python examples/wide_choices.py --url http://127.0.0.1:8020 --compare   # 20 个选项，对比三种读法
+python examples/image_decisions.py --image door-camera.jpg           # TypeSafe multipart 图片
+python examples/image_decisions.py --image door-camera.jpg --transport base64  # JSON/base64
 ```
 
 不起服务，直接在 Python 里做一次决策：

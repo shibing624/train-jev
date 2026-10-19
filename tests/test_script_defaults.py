@@ -28,7 +28,7 @@ with open(os.environ['SCRIPT_CALLS'], 'a') as stream:
         env = os.environ.copy()
         for key in ("BASE", "CKPT", "GPUS", "DATA", "OUT", "NAME", "DEVICE", "STRATEGY", "INIT_ADAPTER", "MIX",
                     "MIX_FRACTION", "KIND_COUNTS", "LR", "HEAD_LR", "RESUME", "FIT_CALIBRATION", "BASE_ONLY",
-                    "ADAPTER_REVISION"):
+                    "ADAPTER_REVISION", "VISION"):
             env.pop(key, None)
         env.update(PATH=str(bin_dir) + os.pathsep + env["PATH"], SCRIPT_CALLS=str(capture),
                    OUT=str(tmp_path / "output"), **settings)
@@ -51,6 +51,12 @@ def test_serving_defaults_are_public_hf_models(shell_runner):
     assert value(args, "--adapter") == "shibing624/train-jev-4b-lora"
     assert value(args, "--name") == "train-jev-4b-lora"
     assert "--adapter_revision" not in args
+
+
+def test_serving_vision_flag(shell_runner):
+    result, calls = shell_runner("run_serve.sh", VISION="1")
+    assert result.returncode == 0, result.stderr
+    assert "--vision" in calls[0]
 
 
 def test_serving_overrides_and_revision(shell_runner):

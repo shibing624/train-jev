@@ -77,6 +77,10 @@ class AssetBundle:
     def has_images(self, text: str) -> bool:
         return any(marker in text for marker in self.markers)
 
+    def close(self) -> None:
+        for asset in self.markers.values():
+            asset.image.close()
+
 
 def _validate_json(value: Any, depth: int = 0, *, reject_markers: bool = False) -> None:
     if isinstance(value, (dict, list)):
@@ -421,29 +425,33 @@ def prepare_assets(body: dict, uploads: dict[str, tuple[bytes, str | None]], ena
         raise AssetError("Every image asset must occur in state, instructions, or criteria values")
 
     bundle = AssetBundle()
-    processed_bytes = 0
-    for ref, asset in assets.items():
-        if "part" in asset:
-            upload = uploads[asset["part"]]
-            if not isinstance(upload, tuple) or len(upload) != 2 or not isinstance(upload[0], bytes):
-                raise AssetError("Invalid image upload")
-            raw, content_type = upload
-            _image_content_type(content_type)
-        else:
-            raw = _decode_base64(asset["data_base64"])
-        image = _prepare_image(raw, asset.get("format"))
-        processed_bytes += image.processed_bytes
-        if processed_bytes > MAX_PROCESSED_BYTES:
-            raise AssetError("Processed image assets exceed 32 MiB", 413)
-        bundle.markers[references[ref]] = image
-    rendered_fields = {key: normalized[key] for key in ("state", "questions") if key in normalized}
     try:
-        text = json.dumps(rendered_fields, ensure_ascii=False, allow_nan=False)
-    except (ValueError, RecursionError, OverflowError):
-        raise AssetError("Invalid JSON request values") from None
-    rendered, _ = bundle.render(text)
-    expanded_bytes = len(rendered.encode("utf-8"))
-    expanded_bytes += sum(part.processed_bytes for part in bundle.parts(text) if isinstance(part, AssetImage))
-    if expanded_bytes > MAX_EXPANDED_BYTES:
-        raise AssetError("Expanded image request exceeds 32 MiB", 413)
-    return normalized, bundle
+        processed_bytes = 0
+        for ref, asset in assets.items():
+            if "part" in asset:
+                upload = uploads[asset["part"]]
+                if not isinstance(upload, tuple) or len(upload) != 2 or not isinstance(upload[0], bytes):
+                    raise AssetError("Invalid image upload")
+                raw, content_type = upload
+                _image_content_type(content_type)
+            else:
+                raw = _decode_base64(asset["data_base64"])
+            image = _prepare_image(raw, asset.get("format"))
+            bundle.markers[references[ref]] = image
+            processed_bytes += image.processed_bytes
+            if processed_bytes > MAX_PROCESSED_BYTES:
+                raise AssetError("Processed image assets exceed 32 MiB", 413)
+        rendered_fields = {key: normalized[key] for key in ("state", "questions") if key in normalized}
+        try:
+            text = json.dumps(rendered_fields, ensure_ascii=False, allow_nan=False)
+        except (ValueError, RecursionError, OverflowError):
+            raise AssetError("Invalid JSON request values") from None
+        rendered, _ = bundle.render(text)
+        expanded_bytes = len(rendered.encode("utf-8"))
+        expanded_bytes += sum(part.processed_bytes for part in bundle.parts(text) if isinstance(part, AssetImage))
+        if expanded_bytes > MAX_EXPANDED_BYTES:
+            raise AssetError("Expanded image request exceeds 32 MiB", 413)
+        return normalized, bundle
+    except BaseException:
+        bundle.close()
+        raise

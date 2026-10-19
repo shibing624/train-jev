@@ -14,10 +14,11 @@ pandas
 flash-linear-attention==0.5.2
 # serving / evaluation clients
 fastapi
+starlette>=0.44
 uvicorn
 httpx
 # TypeSafe multipart image assets
 python-multipart>=0.0.20
 # image decisions (trainjev.serve --vision / trainjev.eval_vision)
-pillow
+pillow>=10
 torchvision

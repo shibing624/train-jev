@@ -149,7 +149,7 @@ flowchart LR
 - [x] 加入公开金标和规则数据，27B 在 train-jev-pk 上超过 autotrust/JEV-27B-VL
 - [ ] 更广的公开金标数据，补齐知识推理和语言理解上与 TypeSafe Jev v1.13 的差距
 - [ ] 训练 Full-finetune 的 Qwen3.8-27B
-- [ ] `/v1/systemone` 服务支持图像输入
+- [x] `/v1/systemone` 服务支持 TypeSafe 图片 assets（JSON/base64、multipart）
 
 ## Citation
 
