@@ -76,6 +76,17 @@ def client():
     srv.S.clear()
 
 
+def test_choice_confidence_is_selected_probability_and_preserves_input(client):
+    payload = {'state': 'plain text', 'questions': {
+        'q': {'type': 'choice', 'instructions': 'Which?', 'criteria': {'a': 'A', 'b': 'B'}}}}
+    response = client.post('/v1/systemone', json=payload)
+    assert response.status_code == 200
+    answer = response.json()['answers']['q']
+    assert answer['choice'] == 'a'
+    assert answer['probabilities'] == {'a': .5, 'b': .5}
+    assert answer['confidence'] == answer['probabilities'][answer['choice']] == .5
+
+
 def raw_image(color='red'):
     output = io.BytesIO()
     Image.new('RGB', (280, 280), color).save(output, format='PNG')

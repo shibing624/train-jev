@@ -381,7 +381,9 @@ def build_app():
                     answers[qid] = {"type": "noul", "noul": float(p[1])}
                 elif q["type"] == "choice":
                     pr = dict(zip(keys, map(float, p)))
-                    answers[qid] = {"type": "choice", "choice": max(pr, key=pr.get), "probabilities": pr}
+                    choice = max(pr, key=pr.__getitem__)
+                    answers[qid] = {"type": "choice", "choice": choice, "confidence": pr[choice],
+                                    "probabilities": pr}
                 else:
                     pr = dict(zip(keys, map(float, p)))
                     answers[qid] = {"type": "score", "score": sum(i * v for i, v in enumerate(p)), "probabilities": pr}
