@@ -34,6 +34,15 @@ The server speaks TypeSafe's [System One API](https://docs.typesafe.ai/api) (`PO
 
 ## Results
 
+> **Local candidate build `v0.4.0-di-priority` (20261021, not uploaded or adopted)**: both complete-prompt bidirectional candidates were measured on the same frozen development sample (37 benchmarks, 6,010 whole requests, 52,902 child answers). These are development/model-selection results, not independent tests, full/private Full leaderboard results or SOTA. The later historical table does not describe these candidates. Their PK, full SDK task benchmark and vision are not measured; images are unsupported. Explicit `--experimental_prompt_bidirectional` is required: full-attention layers are bidirectional, linear layers remain causal, with no KV cache or chunked prompts.
+
+| Local bidirectional candidate | Matched candidate DI | Matched original DI | Gain (DI points) |
+|---|---:|---:|---:|
+| 4B step512 (original v0.4) | 42.8546768968 | 40.7382385987 | +2.1164382981 |
+| 27B step256 (original v0.3) | 57.816997761426926 | 54.02671962678486 | +3.7902781346420653 |
+
+Both new packages passed real localhost HTTP checks using installed `typesafe_sdk==0.7.4` / `TypeSafeClient`: `noul`, 3/77/256-option `choice`, and 2/5/6/10-level `score` (8 synthetic interface cases per package), not a full SDK task benchmark. `score.score` is Σi·pᵢ, `score.confidence` is the peak level probability, and `legend` preserves the original JSON criteria; the SDK converts level keys to integers. This confidence definition does not establish equivalence with the official model's confidence/calibration formula. Separately requested `typedclient._model_sdk` / `Ordinal` is not installed and was not validated.
+
 Models answer the same questions within each evaluation; some official API results come from the official leaderboard and Kev reports. ↑ higher is better, ↓ lower is better.
 
 | Evaluation | train-jev-4b-lora<br>(Ours) | train-jev-27b-lora<br>(Ours) | Kev-4B | autotrust/JEV-27B-VL | TypeSafe Jev v1.13<br>(official API) |
@@ -74,6 +83,18 @@ python -m trainjev.serve --base Qwen/Qwen3.5-4B --adapter shibing624/train-jev-4
 
 The first run downloads the backbone, LoRA, decision head and temperatures. For 27B, use
 `--base Qwen/Qwen3.8-27B --adapter shibing624/train-jev-27b-lora`.
+
+Use the corresponding new local package for these candidates (not the still-unmodified HF default revisions):
+
+```bash
+python -m trainjev.serve --base Qwen/Qwen3.5-4B --adapter ./train-jev-4b-lora \
+    --experimental_prompt_bidirectional --port 8020
+
+python -m trainjev.serve --base Qwen/Qwen3.8-27B --adapter ./train-jev-27b-lora \
+    --experimental_prompt_bidirectional --name train-jev-27b --port 8020
+```
+
+This experimental mode requires `transformers==5.17.0`, SDPA and independent, right-padded complete text prompts. Image requests return 422; `--vision` / `--proxy` conflict with the flag. Legacy causal checkpoints need no new flag and retain their image API. Original calibration bytes are retained without refitting. See the new package's `training_recipe.json` for its data and sampling recipe, rather than the historical 87.5% replay recipe below.
 
 ### Send a request
 

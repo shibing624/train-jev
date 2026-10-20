@@ -19,6 +19,8 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 
+from trainjev.attention import attention_metadata, validate_attention_metadata
+
 
 def _options(strict=True):
     from torch.distributed.checkpoint.state_dict import StateDictOptions
@@ -71,7 +73,7 @@ def save_state(path, body, head, opt, meta):
     dist.barrier()
     if rank == 0:
         with open(os.path.join(tmp, "meta.json"), "w") as f:
-            json.dump(dict(meta, world=dist.get_world_size()), f)
+            json.dump(dict(meta, world=dist.get_world_size(), attention_config=attention_metadata(body)), f)
         if os.path.exists(path):
             os.replace(path, path + ".old")
         os.replace(tmp, path)
@@ -90,6 +92,8 @@ def load_state(path, body, head, opt):
         return None
     with open(os.path.join(p, "meta.json")) as f:
         meta = json.load(f)
+    enabled = attention_metadata(body)["mode"] != "causal"
+    validate_attention_metadata(meta.get("attention_config"), enabled, strict=True)
     if meta["world"] != dist.get_world_size():
         raise ValueError(f"{p} was written by {meta['world']} ranks, now {dist.get_world_size()}: per-rank data "
                          "slices and RNG would not match")

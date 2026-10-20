@@ -25,6 +25,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
+from trainjev.attention import check_checkpoint_attention, configure_prompt_attention
 from trainjev.data import LABELS
 
 VERBALIZERS = ["false", "true", "0", "1", "2", "3", "4", "5"] + LABELS
@@ -52,7 +53,7 @@ def resolve_checkpoint(checkpoint, revision=None):
     return snapshot_download(repo_id=str(checkpoint), revision=revision,
                              allow_patterns=["adapter_config.json", "adapter_model.safetensors", "model.safetensors",
                                              "head.pt", "calibration.json", "training_recipe.json",
-                                             "release_manifest.json"])
+                                             "release_manifest.json", "attention_config.json"])
 
 
 def check_verbalizers(tok):
@@ -109,14 +110,23 @@ def last_hidden(body, batch_ids, pad_id, device):
     """Right-padded batch -> final-norm hidden state at each row's last real token.
 
     Right padding keeps every real token's causal context exact for both the attention and the Gated DeltaNet
-    (recurrent) layers, so no attention mask is needed.
+    (recurrent) layers, so the default causal path needs no mask. The experimental path carries actual row lengths
+    as a padding mask: full-attention layers can see future prompt tokens, but never padding or another row.
     """
     L = max(len(x) for x in batch_ids)
     x = torch.full((len(batch_ids), L), pad_id, dtype=torch.long)
     for i, s in enumerate(batch_ids):
         x[i, : len(s)] = torch.tensor(s)
     x = x.to(device)
-    h = body(input_ids=x).last_hidden_state
+    if getattr(getattr(body, "config", None), "experimental_prompt_bidirectional", False):
+        decoder = body.get_base_model() if hasattr(body, "get_base_model") else body
+        if not hasattr(decoder, "_trainjev_causal_forward"):
+            raise ValueError("Bidirectional model config was loaded without configuring prompt attention")
+        lengths = torch.tensor([len(s) for s in batch_ids], device=device)
+        mask = torch.arange(L, device=device)[None] < lengths[:, None]
+        h = body(input_ids=x, attention_mask=mask, use_cache=False).last_hidden_state
+    else:
+        h = body(input_ids=x).last_hidden_state
     idx = torch.tensor([len(s) - 1 for s in batch_ids], device=device)
     return h[torch.arange(len(batch_ids), device=device), idx]
 
@@ -129,7 +139,7 @@ def is_full_checkpoint(ckpt):
         os.path.join(ckpt, "adapter_config.json"))
 
 
-def load_trained(text_model, head, ckpt, *, trainable=False):
+def load_trained(text_model, head, ckpt, *, trainable=False, experimental_prompt_bidirectional=False):
     """Apply a train-jev checkpoint to ``text_model`` (a Qwen3.5 text model) and ``head``; returns the text model.
 
     LoRA checkpoints are merged into the weights; full checkpoints replace every weight (strict key match).
@@ -137,6 +147,7 @@ def load_trained(text_model, head, ckpt, *, trainable=False):
     import os
 
     ckpt = resolve_checkpoint(ckpt)
+    check_checkpoint_attention(ckpt, experimental_prompt_bidirectional)
     if is_full_checkpoint(ckpt):
         if trainable:
             raise ValueError("A trainable LoRA initialization requires an adapter checkpoint, not full weights")
@@ -164,10 +175,10 @@ def load_trained(text_model, head, ckpt, *, trainable=False):
         raise ValueError("Decision head contains nonfinite values")
     head.weight.data.copy_(sd["weight"])
     head.bias.data.copy_(sd["bias"])
-    return text_model
+    return configure_prompt_attention(text_model, experimental_prompt_bidirectional)
 
 
-def load_model(base, adapter="", dtype=torch.bfloat16, device="cuda"):
+def load_model(base, adapter="", dtype=torch.bfloat16, device="cuda", *, experimental_prompt_bidirectional=False):
     """Load ``(tokenizer, body, head)`` for inference.
 
     ``adapter=""`` gives the untrained reference (head initialised from ``lm_head``); otherwise ``adapter`` is a
@@ -176,6 +187,7 @@ def load_model(base, adapter="", dtype=torch.bfloat16, device="cuda"):
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     adapter = resolve_checkpoint(adapter)
+    check_checkpoint_attention(adapter, experimental_prompt_bidirectional)
     tok = AutoTokenizer.from_pretrained(base)
     check_verbalizers(tok)
     m = AutoModelForCausalLM.from_pretrained(base, dtype=dtype)
@@ -184,24 +196,30 @@ def load_model(base, adapter="", dtype=torch.bfloat16, device="cuda"):
     head.wide = m.get_output_embeddings().weight[wide_ids[16:]].detach().float().clone()
     body = m.model
     if adapter:
-        body = load_trained(body, head, adapter)
+        body = load_trained(body, head, adapter,
+                            experimental_prompt_bidirectional=experimental_prompt_bidirectional)
+    else:
+        configure_prompt_attention(body, experimental_prompt_bidirectional)
     del m.lm_head
     body.to(device).eval()
     head.to(device)
     return tok, body, head
 
 
-def load_vision_model(base, adapter="", dtype=torch.bfloat16, device="cuda"):
+def load_vision_model(base, adapter="", dtype=torch.bfloat16, device="cuda", *,
+                      experimental_prompt_bidirectional=False):
     """Load the full Qwen VL model; share its trained text body with the ordinary text path."""
     from transformers import AutoModelForImageTextToText, AutoProcessor
 
     adapter = resolve_checkpoint(adapter)
+    check_checkpoint_attention(adapter, experimental_prompt_bidirectional, vision=True)
     processor = AutoProcessor.from_pretrained(base)
     tok = processor.tokenizer
     check_verbalizers(tok)
     model = AutoModelForImageTextToText.from_pretrained(base, dtype=dtype)
     if not hasattr(model.model, "language_model"):
         raise ValueError("--vision requires a Qwen3.5 / Qwen3.8 multimodal backbone")
+    configure_prompt_attention(model.model.language_model, False)
     head = DecisionHead(model.get_output_embeddings().weight[VERBALIZER_IDS])
     tok.choice_labels, wide_ids = choice_labels(tok)
     head.wide = model.get_output_embeddings().weight[wide_ids[16:]].detach().float().clone()

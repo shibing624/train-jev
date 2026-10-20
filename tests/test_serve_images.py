@@ -87,6 +87,20 @@ def test_choice_confidence_is_selected_probability_and_preserves_input(client):
     assert answer['confidence'] == answer['probabilities'][answer['choice']] == .5
 
 
+@pytest.mark.parametrize('levels', [2, 5, 6, 10])
+def test_score_confidence_and_legend_preserve_distribution_and_mean(client, levels):
+    criteria = [{'level': i, 'description': ['rating', i]} for i in range(levels)]
+    payload = {'state': 'plain text', 'questions': {
+        'q': {'type': 'score', 'instructions': 'Rate using this ordered rubric.', 'criteria': criteria}}}
+    response = client.post('/v1/systemone', json=payload)
+    assert response.status_code == 200
+    answer = response.json()['answers']['q']
+    assert answer['legend'] == {str(i): criterion for i, criterion in enumerate(criteria)}
+    assert list(answer['probabilities']) == list(answer['legend'])
+    assert answer['score'] == pytest.approx((levels - 1) / 2)
+    assert answer['confidence'] == max(answer['probabilities'].values()) == pytest.approx(1 / levels)
+
+
 def raw_image(color='red'):
     output = io.BytesIO()
     Image.new('RGB', (280, 280), color).save(output, format='PNG')

@@ -42,6 +42,7 @@ from concurrent.futures import ThreadPoolExecutor
 import torch
 import torch.distributed as dist
 
+from trainjev.attention import add_attention_argument, configure_prompt_attention, save_attention_metadata
 from trainjev.data import encode_many, is_placeholder, load_rows, micro_batches
 from trainjev.losses import kl_rps_batch, pack_targets
 from trainjev.metrics import metrics
@@ -88,6 +89,7 @@ def parse_args(argv=None):
     ap.add_argument("--save_steps", action="store_true", help="--full_ft: also keep stepNNNNN/ checkpoints")
     ap.add_argument("--save_state_every", type=int, default=0, help="write <out>/state every N steps (0 = never)")
     ap.add_argument("--resume", action="store_true", help="continue from <out>/state if it exists")
+    add_attention_argument(ap)
     return ap.parse_args(argv)
 
 
@@ -258,10 +260,12 @@ def main(argv=None):
     init_rows = base.get_output_embeddings().weight[VERBALIZER_IDS].detach().float().clone()
     body = base.model  # Qwen3.5 text model (embeddings + layers + final norm); lm_head is not used
     body.config.use_cache = False
+    configure_prompt_attention(body, a.experimental_prompt_bidirectional)
     cfg = LoraConfig(r=a.lora_r, lora_alpha=2 * a.lora_r, lora_dropout=0.05, target_modules=LORA_TARGETS, bias="none")
     head = DecisionHead(init_rows)
     if a.init_adapter:
-        body = load_trained(body, head, a.init_adapter, trainable=True)
+        body = load_trained(body, head, a.init_adapter, trainable=True,
+                            experimental_prompt_bidirectional=a.experimental_prompt_bidirectional)
         if body.peft_config["default"].r != a.lora_r:
             raise ValueError("--lora_r does not match --init_adapter")
         log(f"initialized LoRA and decision head from {a.init_adapter}; optimizer reset")
@@ -319,8 +323,10 @@ def main(argv=None):
         d = os.path.join(a.out, tag)
         os.makedirs(d, exist_ok=True)
         body.save_pretrained(d)
+        attention_config = save_attention_metadata(d, body)
         torch.save({"weight": head.weight.detach().cpu(), "bias": head.bias.detach().cpu(),
-                    "verbalizer_ids": VERBALIZER_IDS, "base": a.base, "args": vars(a)}, os.path.join(d, "head.pt"))
+                    "verbalizer_ids": VERBALIZER_IDS, "base": a.base, "args": vars(a),
+                    "attention_config": attention_config}, os.path.join(d, "head.pt"))
 
     # ------------------------------------------------------------------ train
     hist = []

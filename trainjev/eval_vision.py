@@ -27,6 +27,7 @@ import os
 import sys
 import time
 
+from trainjev.attention import add_attention_argument, check_checkpoint_attention, configure_prompt_attention
 from trainjev.modeling import resolve_checkpoint
 
 DEFAULT_SETS = "full_cvbench,full_blink,full_realworldqa,full_charxiv,full_infovqa"
@@ -45,9 +46,13 @@ def main(argv=None):
     ap.add_argument("--max_pixels", type=int, default=0, help="0 = the kit's default")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--out", required=True)
+    add_attention_argument(ap)
     a = ap.parse_args(argv)
+    check_checkpoint_attention("", a.experimental_prompt_bidirectional, vision=True)
     if a.adapter:
         a.adapter = resolve_checkpoint(a.adapter, a.adapter_revision)
+    if not a.decide_url:
+        check_checkpoint_attention("" if a.base_only else a.adapter, False, vision=True)
     os.makedirs(a.out, exist_ok=True)
     sys.path.insert(0, a.di_root)
     from decision_index.vision import images as img
@@ -99,6 +104,7 @@ def main(argv=None):
 
         proc = AutoProcessor.from_pretrained(a.base)
         m = AutoModelForImageTextToText.from_pretrained(a.base, dtype=torch.bfloat16)
+        configure_prompt_attention(m.model.language_model, False)
         head = DecisionHead(m.get_output_embeddings().weight[VERBALIZER_IDS])
         adapter = "" if a.base_only else a.adapter
         if adapter:

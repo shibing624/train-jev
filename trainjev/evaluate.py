@@ -23,6 +23,7 @@ import math
 import os
 import time
 
+from trainjev.attention import add_attention_argument
 from trainjev.data import encode_many, is_placeholder, load_rows, micro_batches
 from trainjev.metrics import metrics
 from trainjev.modeling import resolve_checkpoint
@@ -66,6 +67,8 @@ def fit_temperatures(rows, zs):
 def make_backend(a):
     """-> logits_of(rows) returning one logit (or log-prob) vector per row."""
     if a.systemone_url or a.decide_url:
+        if getattr(a, "experimental_prompt_bidirectional", False):
+            raise ValueError("Experimental prompt attention cannot be selected for a remote backend")
         from concurrent.futures import ThreadPoolExecutor
 
         import httpx
@@ -108,7 +111,9 @@ def make_backend(a):
 
     from trainjev.modeling import last_hidden, load_model
 
-    tok, body, head = load_model(a.base, "" if a.base_only else a.adapter)
+    enabled = getattr(a, "experimental_prompt_bidirectional", False)
+    tok, body, head = load_model(a.base, "" if a.base_only else a.adapter,
+                                experimental_prompt_bidirectional=enabled)
 
     @torch.no_grad()
     def logits_of(rows):
@@ -140,6 +145,7 @@ def main(argv=None):
     ap.add_argument("--out", required=True)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--batch_tokens", type=int, default=24576)
+    add_attention_argument(ap)
     a = ap.parse_args(argv)
     adapter_source = a.adapter
     if a.adapter:
@@ -149,7 +155,8 @@ def main(argv=None):
     os.makedirs(a.out, exist_ok=True)
     logits_of = make_backend(a)
 
-    summary = {"model": adapter_source or ("base_only" if a.base_only else (a.decide_url or a.systemone_url))}
+    summary = {"model": adapter_source or ("base_only" if a.base_only else (a.decide_url or a.systemone_url)),
+               "experimental_prompt_bidirectional": a.experimental_prompt_bidirectional}
     temps = None
     if a.fit_calibration:
         cal = [r for r in load_rows(f"{a.data}/calibration.jsonl") if not is_placeholder(r)]

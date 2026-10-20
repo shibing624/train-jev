@@ -42,6 +42,7 @@ import torch
 from PIL import Image
 
 from trainjev.assets import AssetBundle, AssetError, prepare_assets, read_request
+from trainjev.attention import add_attention_argument
 from trainjev.data import encode, micro_batches, prompt
 from trainjev.modeling import last_hidden, load_model, load_temperatures, load_vision_model, resolve_checkpoint
 
@@ -65,11 +66,15 @@ def parse_args(argv=None):
     ap.add_argument("--name", default="jev-4b")
     ap.add_argument("--strategy", default="single", choices=STRATEGIES, help="choices with > 16 options")
     ap.add_argument("--device", default="cuda")
+    add_attention_argument(ap)
     return ap.parse_args(argv)
 
 
 def setup(a):
     S["args"] = a
+    enabled = getattr(a, "experimental_prompt_bidirectional", False)
+    if enabled and (a.proxy or a.vision):
+        raise ValueError("Experimental prompt attention supports local text only, not proxy or vision/MRoPE")
     if a.proxy:
         import httpx
 
@@ -81,7 +86,8 @@ def setup(a):
     if a.vision:
         tok, body, head, processor, vision = load_vision_model(a.base, adapter, dtype=dtype, device=a.device)
     else:
-        tok, body, head = load_model(a.base, adapter, dtype=dtype, device=a.device)
+        tok, body, head = load_model(a.base, adapter, dtype=dtype, device=a.device,
+                                    experimental_prompt_bidirectional=enabled)
         processor = vision = None
     cal = a.calibration or (os.path.join(adapter, "calibration.json") if adapter else "")
     S.update(tok=tok, body=body, head=head, processor=processor, vision=vision,
@@ -386,7 +392,10 @@ def build_app():
                                     "probabilities": pr}
                 else:
                     pr = dict(zip(keys, map(float, p)))
-                    answers[qid] = {"type": "score", "score": sum(i * v for i, v in enumerate(p)), "probabilities": pr}
+                    answers[qid] = {"type": "score", "score": sum(i * v for i, v in enumerate(p)),
+                                    "confidence": max(pr.values()),
+                                    "legend": {str(i): criterion for i, criterion in enumerate(q["criteria"])},
+                                    "probabilities": pr}
         except AssetError as e:
             return JSONResponse({"error": str(e)}, status_code=e.status_code)
         except ValueError as e:
@@ -402,7 +411,8 @@ def build_app():
     @app.get("/health")
     async def health():
         return {"ok": True, "model": S["args"].name,
-                "images": bool(S["args"].proxy or getattr(S["args"], "vision", False))}
+                "images": bool(S["args"].proxy or getattr(S["args"], "vision", False)),
+                "experimental_prompt_bidirectional": getattr(S["args"], "experimental_prompt_bidirectional", False)}
 
     return app
 
