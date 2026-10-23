@@ -1,0 +1,464 @@
+{
+  "version": "v0.4.0",
+  "date": "2026-10-23",
+  "attention": "causal",
+  "models": {
+    "4b": {
+      "repo_id": "shibing624/train-jev-4b-lora",
+      "base_model": "Qwen/Qwen3.5-4B",
+      "selected_step": 1024,
+      "evaluations": {
+        "classification1300": {
+          "new": {
+            "accuracy": 0.6523076923076923,
+            "ece": 0.06215856323448511
+          },
+          "v0.3.0": {
+            "accuracy": 0.6423076923076924,
+            "ece": 0.05009100834668621
+          },
+          "requests": 1300,
+          "questions": 1300,
+          "groups": 13,
+          "complete_requested_panel": true,
+          "failed": 0,
+          "skipped": 0,
+          "truncated": 0,
+          "ordered_inputs_sha256": "1cb9e6b158b89edfd6dd8548bd7701cb93d0aa2c685dc174cc1761d0927934c7",
+          "ordered_groups_sha256": "5b50a195d7f591ce170ac829295d35aaa247e7b1c9d478fddb783a3662a1294e",
+          "scoring": "Pooled accuracy and upper-inclusive ECE10."
+        },
+        "di_full37": {
+          "new": {
+            "di_unrounded": 41.99869307838075
+          },
+          "v0.3.0": {
+            "di_unrounded": 39.01322738751707
+          },
+          "requests": 110087,
+          "questions": 272229,
+          "groups": 37,
+          "complete_requested_panel": true,
+          "failed": 0,
+          "skipped": 0,
+          "truncated": 0,
+          "ordered_inputs_sha256": "ee90585b33e20c928a35057bc97c6dcaf0934be482d4152f5861f3b0614ac23c",
+          "ordered_groups_sha256": "2d59118809cb9bef32d595a9b9296a270b2d14451ef64dc7b3bc36546e00dc40",
+          "indexed_benchmarks": 37,
+          "canonical_suite43_complete": false,
+          "unrequested_unindexed_catalogs": [
+            6,
+            10,
+            24,
+            26,
+            27,
+            34
+          ],
+          "scoring": "Canonical public text DI index, not overall accuracy or the private Full leaderboard."
+        },
+        "di_hist35": {
+          "new": {
+            "di_unrounded": 43.83997472723264
+          },
+          "v0.3.0": {
+            "di_unrounded": 41.48886864142294
+          },
+          "requests": 6000,
+          "questions": 47463,
+          "groups": 41,
+          "complete_requested_panel": true,
+          "failed": 0,
+          "skipped": 0,
+          "truncated": 0,
+          "ordered_inputs_sha256": "ab7ef328a4768b5c86f991f5486a020994384bb17190778814757031fd52ca81",
+          "ordered_groups_sha256": "cb75c728f1107e3d375c7b9fb927a822dd4ecd8fc43507fd09ce2c7637188feb",
+          "indexed_benchmarks": 35,
+          "scoring": "Historical sample; stock benchmark rounding and hierarchical DI weighting."
+        },
+        "pk2494": {
+          "new": {
+            "accuracy": 0.7603109322337914,
+            "ece": 0.09298802739593186
+          },
+          "v0.3.0": {
+            "accuracy": 0.7418372151101246,
+            "ece": 0.11201286234502188
+          },
+          "requests": 2494,
+          "questions": 2494,
+          "groups": 22,
+          "complete_requested_panel": true,
+          "failed": 0,
+          "skipped": 0,
+          "truncated": 0,
+          "ordered_inputs_sha256": "f7058391910d65866fac334891abdc103cb68b8c0bc114a304d008b24a87ea86",
+          "ordered_groups_sha256": "caa7c99d33f651c4ef9e46453f407ff5b230b0d2393466560abc8ea476a86351",
+          "scoring": "Equal-task macro accuracy and upper-inclusive ECE15; true-at-0.5 noul ties."
+        },
+        "transfer656": {
+          "new": {
+            "accuracy": 0.8201219512195121,
+            "ece": 0.05880894293109165
+          },
+          "v0.3.0": {
+            "accuracy": 0.8048780487804879,
+            "ece": 0.05387672241683911
+          },
+          "requests": 764,
+          "questions": 656,
+          "groups": 11,
+          "complete_requested_panel": true,
+          "failed": 0,
+          "skipped": 0,
+          "truncated": 0,
+          "ordered_inputs_sha256": "44edad283deb8751a8442854635ec82700ed3263855012b850714b6708fb9a96",
+          "ordered_groups_sha256": "7cc31205a0007734fb385daba90114e39c66df8cbfc23a851391304c7f5e1b87",
+          "scored_clean_questions": 656,
+          "scoring": "Kev-normalized probabilities; pooled ECE10 with lower-inclusive bins except confidence 1; false-at-argmax noul ties."
+        }
+      },
+      "regressions": [
+        {
+          "delta": 0.012067554887798905,
+          "metric": "ece",
+          "new": 0.06215856323448511,
+          "old": 0.05009100834668621,
+          "suite": "classification1300"
+        },
+        {
+          "delta": 0.004932220514252544,
+          "metric": "ece",
+          "new": 0.05880894293109165,
+          "old": 0.05387672241683911,
+          "suite": "transfer656"
+        },
+        {
+          "benchmark": "32",
+          "delta": -0.012718600953895043,
+          "metric": "skill",
+          "new": 0.3044515103338633,
+          "old": 0.31717011128775835,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "33",
+          "delta": -0.0380990981862398,
+          "metric": "skill",
+          "new": 0.2913162427804235,
+          "old": 0.3294153409666633,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "44",
+          "delta": -0.03520000000000001,
+          "metric": "skill",
+          "new": 0.2724,
+          "old": 0.3076,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "58",
+          "delta": -0.009500000000000008,
+          "metric": "skill",
+          "new": 0.4733,
+          "old": 0.4828,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "11",
+          "delta": -0.0038999999999999035,
+          "metric": "skill",
+          "new": 0.6125,
+          "old": 0.6164,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "42",
+          "delta": -0.0013618677042802618,
+          "metric": "skill",
+          "new": 0.5947470817120621,
+          "old": 0.5961089494163424,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "1",
+          "delta": -0.020000000000000018,
+          "metric": "skill",
+          "new": 0.8629,
+          "old": 0.8829,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "2",
+          "delta": -0.00869999999999993,
+          "metric": "skill",
+          "new": 0.5571,
+          "old": 0.5658,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "9",
+          "delta": -0.011299999999999977,
+          "metric": "skill",
+          "new": 0.2614,
+          "old": 0.2727,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "62",
+          "delta": -0.007799999999999918,
+          "metric": "skill",
+          "new": 0.6549,
+          "old": 0.6627,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "23",
+          "delta": -0.05049999999999999,
+          "metric": "skill",
+          "new": 0.1625,
+          "old": 0.213,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "50",
+          "delta": -0.020799999999999985,
+          "metric": "skill",
+          "new": 0.1202,
+          "old": 0.141,
+          "suite": "di_full37"
+        }
+      ]
+    },
+    "27b": {
+      "repo_id": "shibing624/train-jev-27b-lora",
+      "base_model": "Qwen/Qwen3.8-27B",
+      "selected_step": 512,
+      "evaluations": {
+        "classification1300": {
+          "new": {
+            "accuracy": 0.6938461538461539,
+            "ece": 0.037732744881739985
+          },
+          "v0.3.0": {
+            "accuracy": 0.686923076923077,
+            "ece": 0.04842008214402757
+          },
+          "requests": 1300,
+          "questions": 1300,
+          "groups": 13,
+          "complete_requested_panel": true,
+          "failed": 0,
+          "skipped": 0,
+          "truncated": 0,
+          "ordered_inputs_sha256": "1cb9e6b158b89edfd6dd8548bd7701cb93d0aa2c685dc174cc1761d0927934c7",
+          "ordered_groups_sha256": "5b50a195d7f591ce170ac829295d35aaa247e7b1c9d478fddb783a3662a1294e",
+          "scoring": "Pooled accuracy and upper-inclusive ECE10."
+        },
+        "di_full37": {
+          "new": {
+            "di_unrounded": 57.01454970852101
+          },
+          "v0.3.0": {
+            "di_unrounded": 55.58054706553611
+          },
+          "requests": 110087,
+          "questions": 272229,
+          "groups": 37,
+          "complete_requested_panel": true,
+          "failed": 0,
+          "skipped": 0,
+          "truncated": 0,
+          "ordered_inputs_sha256": "ee90585b33e20c928a35057bc97c6dcaf0934be482d4152f5861f3b0614ac23c",
+          "ordered_groups_sha256": "2d59118809cb9bef32d595a9b9296a270b2d14451ef64dc7b3bc36546e00dc40",
+          "indexed_benchmarks": 37,
+          "canonical_suite43_complete": false,
+          "unrequested_unindexed_catalogs": [
+            6,
+            10,
+            24,
+            26,
+            27,
+            34
+          ],
+          "scoring": "Canonical public text DI index, not overall accuracy or the private Full leaderboard."
+        },
+        "di_hist35": {
+          "new": {
+            "di_unrounded": 57.54375022709923
+          },
+          "v0.3.0": {
+            "di_unrounded": 56.14817143346673
+          },
+          "requests": 6000,
+          "questions": 47463,
+          "groups": 41,
+          "complete_requested_panel": true,
+          "failed": 0,
+          "skipped": 0,
+          "truncated": 0,
+          "ordered_inputs_sha256": "ab7ef328a4768b5c86f991f5486a020994384bb17190778814757031fd52ca81",
+          "ordered_groups_sha256": "cb75c728f1107e3d375c7b9fb927a822dd4ecd8fc43507fd09ce2c7637188feb",
+          "indexed_benchmarks": 35,
+          "scoring": "Historical sample; stock benchmark rounding and hierarchical DI weighting."
+        },
+        "pk2494": {
+          "new": {
+            "accuracy": 0.7952312907248854,
+            "ece": 0.09005632776798926
+          },
+          "v0.3.0": {
+            "accuracy": 0.7872115323961828,
+            "ece": 0.09775462606997504
+          },
+          "requests": 2494,
+          "questions": 2494,
+          "groups": 22,
+          "complete_requested_panel": true,
+          "failed": 0,
+          "skipped": 0,
+          "truncated": 0,
+          "ordered_inputs_sha256": "f7058391910d65866fac334891abdc103cb68b8c0bc114a304d008b24a87ea86",
+          "ordered_groups_sha256": "caa7c99d33f651c4ef9e46453f407ff5b230b0d2393466560abc8ea476a86351",
+          "scoring": "Equal-task macro accuracy and upper-inclusive ECE15; true-at-0.5 noul ties."
+        },
+        "transfer656": {
+          "new": {
+            "accuracy": 0.8475609756097561,
+            "ece": 0.06808978288962528
+          },
+          "v0.3.0": {
+            "accuracy": 0.8582317073170732,
+            "ece": 0.031566194922317846
+          },
+          "requests": 764,
+          "questions": 656,
+          "groups": 11,
+          "complete_requested_panel": true,
+          "failed": 0,
+          "skipped": 0,
+          "truncated": 0,
+          "ordered_inputs_sha256": "44edad283deb8751a8442854635ec82700ed3263855012b850714b6708fb9a96",
+          "ordered_groups_sha256": "7cc31205a0007734fb385daba90114e39c66df8cbfc23a851391304c7f5e1b87",
+          "scored_clean_questions": 656,
+          "scoring": "Kev-normalized probabilities; pooled ECE10 with lower-inclusive bins except confidence 1; false-at-argmax noul ties."
+        }
+      },
+      "regressions": [
+        {
+          "delta": -0.010670731707317138,
+          "metric": "accuracy",
+          "new": 0.8475609756097561,
+          "old": 0.8582317073170732,
+          "suite": "transfer656"
+        },
+        {
+          "delta": 0.03652358796730743,
+          "metric": "ece",
+          "new": 0.06808978288962528,
+          "old": 0.031566194922317846,
+          "suite": "transfer656"
+        },
+        {
+          "benchmark": "33",
+          "delta": -0.09332252507852873,
+          "metric": "skill",
+          "new": 0.2477454655993515,
+          "old": 0.34106799067788024,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "43",
+          "delta": -0.0027999999999999137,
+          "metric": "skill",
+          "new": 0.5964,
+          "old": 0.5992,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "44",
+          "delta": -0.007199999999999984,
+          "metric": "skill",
+          "new": 0.45,
+          "old": 0.4572,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "11",
+          "delta": -0.046499999999999986,
+          "metric": "skill",
+          "new": 0.6081,
+          "old": 0.6546,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "38",
+          "delta": -0.0008255933952528716,
+          "metric": "skill",
+          "new": 0.2115583075335397,
+          "old": 0.21238390092879258,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "59",
+          "delta": -0.015900000000000025,
+          "metric": "skill",
+          "new": 0.5949,
+          "old": 0.6108,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "56",
+          "delta": -0.01599999999999996,
+          "metric": "skill",
+          "new": 0.268,
+          "old": 0.284,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "2",
+          "delta": -9.999999999998899e-05,
+          "metric": "skill",
+          "new": 0.6209,
+          "old": 0.621,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "62",
+          "delta": -0.021400000000000086,
+          "metric": "skill",
+          "new": 0.7051,
+          "old": 0.7265,
+          "suite": "di_full37"
+        },
+        {
+          "benchmark": "23",
+          "delta": -0.011400000000000021,
+          "metric": "skill",
+          "new": 0.2834,
+          "old": 0.2948,
+          "suite": "di_full37"
+        }
+      ]
+    }
+  },
+  "comparison_note": "v0.3.0 original stored probabilities and CPU summaries; no old-model rerun and not a fresh same-stack control.",
+  "classification_protocol_difference": "Old wide choices used tournament; new models use complete native single pass.",
+  "external_references": "Kev, autotrust/JEV-27B-VL and TypeSafe API references are historical, not new matched runs.",
+  "not_remeasured": [
+    "vision for either model",
+    "new 27B SDK",
+    "new 27B MemWrite8"
+  ],
+  "data_provenance_limits": [
+    "PK contains held-out items from training-source datasets and shared rule families; not fully unseen-source evaluation.",
+    "After data generation/verification, a schema probe displayed native labels in two PK provenance records. Labels were not used for generation, oracles, screening, selection or tuning, but strict zero-label-access was not fully preserved.",
+    "Previous selection exposure and nonexhaustive semantic-overlap exclusion remain; no 100% contamination-free or independent-final claim."
+  ],
+  "evidence": {
+    "final_cpu_staging_report": {
+      "sha256": "1ba96ce881c3bd601cd9759fe7dd37b03028af7e5f88c021ed4ef961c07a4e5c",
+      "bytes": 49146
+    }
+  }
+}

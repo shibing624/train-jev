@@ -21,7 +21,7 @@ The server speaks TypeSafe's [System One API](https://docs.typesafe.ai/api) (`PO
 - **Three question types in one request**: yes/no (`noul`), multiple choice (`choice`) and rating (`score`), answered independently over shared text.
 - **Calibrated by default**: per-type temperatures help set thresholds for automation and human review; recalibrate for new domains when needed.
 - **Ready to run**: both 4B and 27B LoRA models are on Hugging Face, with one-command serving.
-- **High accuracy, low calibration error**: 27B reaches 78.72% task-macro accuracy on the sealed PK and 0.032 ECE on transfer-v4.
+- **Improved decision capability**: 27B reaches 79.52% task-macro accuracy on train-jev-pk and 57.01 on the full public Decision Index; 4B reaches 76.03% and 42.00.
 - **Vision capability**: `trainjev.serve --vision` accepts TypeSafe-style image `assets` via JSON/base64 or multipart, with yes/no, choice and score questions on the same `/v1/systemone` endpoint; see [image requests](docs/serving.en.md#image-input-typesafe-assets).
 - **Reusable training method**: KL distillation, gold supervision, rule-data replay, multi-GPU DDP / FSDP2, resumable runs and custom-data mixtures.
 
@@ -34,35 +34,27 @@ The server speaks TypeSafe's [System One API](https://docs.typesafe.ai/api) (`PO
 
 ## Results
 
-Models answer the same questions within each evaluation; some official API results come from the official leaderboard and Kev reports. ↑ higher is better, ↓ lower is better.
+Ours denotes the current release. Kev, autotrust and official API columns are historical references, not rerun in this round. ↑ higher is better, ↓ lower is better.
 
 | Evaluation | train-jev-4b-lora<br>(Ours) | train-jev-27b-lora<br>(Ours) | Kev-4B | autotrust/JEV-27B-VL | TypeSafe Jev v1.13<br>(official API) |
 |---|---:|---:|---:|---:|---:|
 | **[train-jev-pk](data/train-jev-pk/)** (2,494 questions, 22 tasks) | | | | | |
-| Task-macro accuracy ↑ | 74.18% | **78.72%** | 63.50% | 73.47% | – |
-| Public gold (PAWS / AQuA / QASC / HelpSteer2) ↑ | 63.25% | **70.65%** | 56.70% | 62.24% | – |
-| Legacy classification (12 tasks) ↑ | 69.89% | **74.89%** | 70.11% | 72.67% | – |
-| Exact rules (6 families) ↑ | 90.06% | **91.77%** | 54.79% | 82.57% | – |
-| Calibrated NLL ↓ | 0.751 | **0.629** | 1.018 | 0.761 | – |
-| ECE ↓ | 0.112 | **0.098** | 0.159 | 0.107 | – |
+| Task-macro accuracy ↑ | 76.03% | **79.52%** | 63.50% | 73.47% | – |
+| ECE ↓ | 0.0930 | **0.0901** | 0.159 | 0.107 | – |
 | **[train-jev-classification-pk](data/train-jev-classification-pk/)** (13 scenarios, 1,300 questions) | | | | | |
-| Accuracy ↑ | 0.642 | 0.687 | 0.640 | 0.690 | **0.700** |
-| ECE ↓ | 0.050 | **0.048** | 0.083 | 0.094 | 0.130 |
-| Accuracy on the 8 sources Kev never saw ↑ | 0.600 | 0.640 | 0.570 | **0.645** | **0.645** |
+| Accuracy ↑ | 0.6523 | 0.6938 | 0.640 | 0.690 | **0.700** |
+| ECE ↓ | 0.0622 | **0.0377** | 0.083 | 0.094 | 0.130 |
 | **[Kev transfer-v4](https://github.com/jaredpalmer/kev)** (656 questions from unseen sources) | | | | | |
-| Accuracy ↑ | 0.805 | **0.858** | 0.817 | 0.852 | 0.857 |
-| ECE ↓ | 0.054 | **0.032** | 0.042 | 0.097 | – |
-| NLL ↓ | 0.596 | **0.377** | 0.435 | 0.460 | – |
-| **[Decision Index 0.3, sampled score](https://github.com/apolinario/decision-index) (6,000 questions)** ↑ | 41.5 | 56.1 | 38.4 | 54.1 | **59.7** |
-| **[Decision Index 0.3, full-panel score](https://github.com/apolinario/decision-index) (110,087 questions)** ↑ | 39.01 | **55.58** | – | – | – |
-| **[Zero-shot image decisions](https://github.com/apolinario/decision-index)** (5 vision sets) ↑ | 0.693 | 0.765 | not supported | **0.782** | – |
-| Single-question p50 latency | 42 ms | 151 ms | **17 ms** | 96 ms | 370 ms (incl. network) |
+| Accuracy ↑ | 0.8201 | 0.8476 | 0.817 | 0.852 | **0.857** |
+| ECE ↓ | 0.0588 | 0.0681 | **0.042** | 0.097 | – |
+| **[Decision Index 0.3, sampled score](https://github.com/apolinario/decision-index) (6,000 requests)** ↑ | 43.84 | 57.54 | 38.4 | 54.1 | **59.7** |
+| **[Decision Index 0.3, full-panel score](https://github.com/apolinario/decision-index) (110,087 requests)** ↑ | 42.00 | **57.01** | – | – | – |
 
-- **27B combines accuracy and calibration**: 78.72% train-jev-pk accuracy, a paired 5.25-point gain over autotrust/JEV-27B-VL; transfer-v4 accuracy / ECE of 0.858 / 0.032 versus 0.852 / 0.097.
-- **4B is smaller and competitive**: 74.18% train-jev-pk accuracy versus 63.50% for the same-size Kev-4B, with 0.050 ECE on the classification PK for confidence-based decisions.
+- **Aggregate decision scores improve for both sizes**: against original archived results, full DI rises from 39.01 to 42.00 for 4B and 55.58 to 57.01 for 27B; train-jev-pk accuracy is 76.03% / 79.52%.
+- **Gains are not universal**: 27B transfer-v4 accuracy falls from 85.82% to 84.76%, with ECE rising from 0.0316 to 0.0681; 4B classification and transfer ECE also worsen. Choose for your workload rather than assuming every task improves.
 - **Adapt the method to your workload**: compact LoRA + head training combines soft-distribution distillation, gold labels and rules, with an end-to-end path through calibration, evaluation and serving.
 
-> Decision Index is a composite score, not accuracy. The sample covers 35 benchmarks; the full run covers the public 37-benchmark text panel, not the private Full leaderboard. Some train-jev-pk tasks share training sources or rule families, but not items. Both local suites include complete indices and redistribution-cleared text; restore other inputs from their sources, as explained in [data/](data/). Latency stacks differ; protocols and limitations are in [the results guide](docs/results.en.md).
+> Decision Index is a composite score, not accuracy. All requested 37 public scoring benchmarks are complete, but six unindexed diagnostics were not requested; this is not the private Full leaderboard. Old results are original archives/CPU recompositions. Old classification wide choices used tournament and new models use single, so not all differences are weight effects. New vision quality was not re-evaluated. Data and provenance limitations are in [data/](data/) and [the results guide](docs/results.en.md).
 
 ## Quick Start
 
@@ -102,7 +94,7 @@ Both sizes use the same data and method: soft-distribution distillation followed
 | [PAWS](https://huggingface.co/datasets/google-research-datasets/paws), [AQuA-RAT](https://huggingface.co/datasets/deepmind/aqua_rat), [QASC](https://huggingface.co/datasets/allenai/qasc), [HelpSteer2](https://huggingface.co/datasets/nvidia/HelpSteer2) | Paraphrases, mathematics/science choices and correctness ratings | 15,999 |
 | Independently verified rules (CC0) | Routing, evidence, coreference, refund conversion, calendars and condition counting | 10,000 |
 
-Continued training uses **87.5% distillation replay + 12.5% new supervision per step**. Only LoRA and the decision head are trained; temperatures are fitted on an independent calibration set.
+The current release further uses 12,947 admitted rows from [tasksource typed-decisions](https://huggingface.co/datasets/tasksource/tasksource-jev-typed-decisions), spanning commonsense, reading, soft vote labels, entities and legal tasks, on top of distillation, gold labels and rules. Sampling differs by phase; the old 12.5% recipe does not describe the whole current run. Actual exposures and settings are in `training_recipe.json`. This publication retains each model's existing calibration rather than refitting on the new evaluations.
 
 ```bash
 # Initial distillation: download data and backbone, then train

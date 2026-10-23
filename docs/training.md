@@ -114,9 +114,9 @@ GPUS=0,1,2 INIT_ADAPTER=runs/jev-27b/best MIX=data/my-gold/train.jsonl \
   EVAL_EVERY=256 bash scripts/run_train_27b.sh
 ```
 
-多个文件用逗号连接，例如 `MIX=data/math/train.jsonl,data/public/train.jsonl,data/rules/train.jsonl`。旧数据回放降低遗忘，新监督增强任务能力；发布配方采用 12.5% 新监督。`STEPS` 控制学习率表，`MAX_STEPS` 控制停止位置，两者用途不同。
+多个文件用逗号连接，例如 `MIX=data/math/train.jsonl,data/public/train.jsonl,data/rules/train.jsonl`。旧数据回放降低遗忘，新监督增强任务能力；这里的 12.5% 是基础金标续训示例，不是当前发布模型完整配方。`STEPS` 控制学习率表，`MAX_STEPS` 控制停止位置，两者用途不同。
 
-发布的 v0.3.0 模型使用上述两阶段方法和 37,147 行新增监督，并选用第 512 步的续训权重。用公开来源自行处理数据可以复用配方，但当前仓库未分发发布时的完整加工数据与生成器，不保证逐位复现原权重。
+早期 v0.3.0 使用上述两阶段方法和 37,147 行新增监督。当前 v0.4.0 在此基础上继续使用 [tasksource typed-decisions](https://huggingface.co/datasets/tasksource/tasksource-jev-typed-decisions) 的 12,947 行任务来源数据，包含九个来源、2,692 个原生软 target；4B 发布点为第 1,024 步，27B 为第 512 步。实际采样、历史数据复用和各阶段曝光保留在 HF 包的 `training_recipe.json`，不要用简单池比例推算。以上 PAWS 命令用于复用方法，不是一键重建发布权重的脚本；未公开的加工数据与生成器仍需另外获取。
 
 ## 5. 校准、续训与部署
 
@@ -158,11 +158,11 @@ bash scripts/run_serve.sh
 | 4B 金标与规则续训实验 | 3×H20 | 2,048 | 1.3 h |
 | 27B 金标与规则续训实验 | 3×H20 | 1,024 | 7.9 h |
 
-续训实验耗时是实际跑完的实验总时间；发布模型使用其中第 512 步，并非最后一步。
+上表是基础蒸馏与历史金标续训实验的实测时间，不是新任务来源阶段的耗时；本轮没有提供可核验的新增训练耗时，因此不外推。当前权重的选点见上一节。
 
 | 已发布模型 | [train-jev-pk](../data/train-jev-pk) 准确率 ↑ | [transfer-v4](https://github.com/jaredpalmer/kev) 准确率 ↑ | transfer-v4 ECE ↓ | [Decision Index 全量](https://github.com/apolinario/decision-index) 得分 ↑ |
 |---|---:|---:|---:|---:|
-| shibing624/train-jev-4b-lora | 74.18% | 0.805 | 0.054 | 39.01 |
-| shibing624/train-jev-27b-lora | 78.72% | 0.858 | 0.032 | 55.58 |
+| shibing624/train-jev-4b-lora | 76.03% | 0.8201 | 0.0588 | 42.00 |
+| shibing624/train-jev-27b-lora | 79.52% | 0.8476 | 0.0681 | 57.01 |
 
 这些是发布模型在固定评测协议下的结果，不是 PAWS 示例训练的预期分数。与 [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL)、Kev 和 TypeSafe API 的对比及局限见 [结果文档](results.md)。

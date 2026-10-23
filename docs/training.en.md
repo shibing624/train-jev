@@ -114,9 +114,9 @@ GPUS=0,1,2 INIT_ADAPTER=runs/jev-27b/best MIX=data/my-gold/train.jsonl \
   EVAL_EVERY=256 bash scripts/run_train_27b.sh
 ```
 
-Separate multiple files with commas, e.g. `MIX=data/math/train.jsonl,data/public/train.jsonl,data/rules/train.jsonl`. Replay reduces forgetting while new supervision improves decisions; the published recipe uses a 12.5% new-data fraction. `STEPS` defines the learning-rate schedule; `MAX_STEPS` defines where to stop.
+Separate multiple files with commas, e.g. `MIX=data/math/train.jsonl,data/public/train.jsonl,data/rules/train.jsonl`. Replay reduces forgetting while supervision improves decisions; 12.5% here is an initial gold-refinement example, not the complete current release recipe. `STEPS` defines the learning-rate schedule; `MAX_STEPS` defines where to stop.
 
-The released v0.3.0 models use this two-stage method with 37,147 new supervised rows and the step-512 refinement weights. Public sources let you reuse the recipe, but the complete published preprocessing data and generators are not distributed here; bitwise reproduction is not guaranteed.
+Earlier v0.3.0 used this two-stage method with 37,147 new supervised rows. Current v0.4.0 further uses 12,947 admitted [tasksource typed-decisions](https://huggingface.co/datasets/tasksource/tasksource-jev-typed-decisions) rows from nine sources, including 2,692 native soft targets. Selected steps are 1,024 for 4B and 512 for 27B. Actual sampling, prior-data reuse and phase exposures are in `training_recipe.json`; simple pool ratios do not recover them. The PAWS commands demonstrate the method, not one-command reproduction of released weights; unpublished processed data and generators must be obtained separately.
 
 ## 5. Calibration, resuming and serving
 
@@ -158,11 +158,11 @@ More flags are in the [serving guide](serving.en.md).
 | 4B gold-and-rule experiment | 3×H20 | 2,048 | 1.3 h |
 | 27B gold-and-rule experiment | 3×H20 | 1,024 | 7.9 h |
 
-Refinement times describe the completed experiments; released models use step 512, not the final step.
+These timings describe initial distillation and historical gold refinement, not the new tasksource stage. No verified incremental training time was provided for this round, so none is extrapolated. Current selected steps are described above.
 
 | Released model | [train-jev-pk](../data/train-jev-pk) accuracy ↑ | [transfer-v4](https://github.com/jaredpalmer/kev) accuracy ↑ | transfer-v4 ECE ↓ | [Full Decision Index](https://github.com/apolinario/decision-index) score ↑ |
 |---|---:|---:|---:|---:|
-| shibing624/train-jev-4b-lora | 74.18% | 0.805 | 0.054 | 39.01 |
-| shibing624/train-jev-27b-lora | 78.72% | 0.858 | 0.032 | 55.58 |
+| shibing624/train-jev-4b-lora | 76.03% | 0.8201 | 0.0588 | 42.00 |
+| shibing624/train-jev-27b-lora | 79.52% | 0.8476 | 0.0681 | 57.01 |
 
 These are released-model results under fixed protocols, not expected scores for the PAWS example. Comparisons against [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL), Kev and TypeSafe API, with limitations, are in [the results guide](results.en.md).

@@ -2,9 +2,36 @@
 
 [中文](results.md)
 
-Results for the two released models, **train-jev-4b-lora** and **train-jev-27b-lora** (5,123 steps each, temperatures
-fitted on the `calibration` split). Every comparison in a table uses the same rows for every model. Reference models
-were run by us on the same hardware (one NVIDIA H20 each) unless marked *board* or *reported*.
+## Current release: v0.4.0
+
+The default HF **train-jev-4b-lora** / **train-jev-27b-lora** weights are causal models. Selected tasksource refinement steps are 1,024 for 4B and 512 for 27B. No bidirectional attention or new calibration fitting is used in this publication.
+
+| Metric | 4B v0.3.0 original archive | 4B current | 27B v0.3.0 original archive | 27B current |
+|---|---:|---:|---:|---:|
+| train-jev-pk accuracy (2,494 questions, 22-task macro) ↑ | 74.1837% | **76.0311%** | 78.7212% | **79.5231%** |
+| train-jev-pk ECE15 ↓ | 0.112013 | **0.092988** | 0.097755 | **0.090056** |
+| Classification PK accuracy (1,300 questions) ↑ | 64.2308% | **65.2308%** | 68.6923% | **69.3846%** |
+| Classification PK ECE10 ↓ | **0.050091** | 0.062159 | 0.048420 | **0.037733** |
+| transfer-v4 accuracy (656 scored questions) ↑ | 80.4878% | **82.0122%** | **85.8232%** | 84.7561% |
+| transfer-v4 ECE10 ↓ | **0.053877** | 0.058809 | **0.031566** | 0.068090 |
+| Historical DI35 sample (6,000 requests) ↑ | 41.488869 | **43.839975** | 56.148171 | **57.543750** |
+| Full public DI37 (110,087 requests) ↑ | 39.013227 | **41.998693** | 55.580547 | **57.014550** |
+
+**Aggregate scores improve, with regressions.** 27B transfer accuracy loses 1.0671 points and ECE worsens substantially; 4B classification and transfer ECE also worsen. Not every DI benchmark improves. Negative components and exact unrounded values are retained in the [machine-readable report](../reports/v0.4.0/results.json).
+
+### Protocol and limitations
+
+- Old models were not rerun. Controls are original v0.3.0 predictions and CPU recompositions, not fresh same-stack inference. Old classification wide choices used tournament and new models use complete single-pass readout; not all deltas are weight effects.
+- PK uses per-task ECE15 then macro averaging, whereas classification uses pooled ECE10. Transfer evaluated 764 original requests and scores 656 clean knowable questions, preserving Kev normalization and bin boundaries; ECE is not interchangeable across suites.
+- The historical sample has 6,000 whole requests / 47,463 child answers, 41 input catalogs and 35 indexed benchmarks. It is not the 6,010-request 37-benchmark development panel. This round reused 5,258 identical-input full forwards and completed 742 fresh requests.
+- Full evaluation completes 110,087 requests / 272,229 child answers over all 37 indexed public text benchmarks. Six unindexed diagnostic catalogs (6, 10, 24, 26, 27, 34) were not requested, so canonical `complete=false` remains; this is not the private Full leaderboard.
+- New vision weights were not re-evaluated; new 27B SDK / MemWrite8 tests were not run. API support or older image scores do not establish new-weight validation.
+- PK has training-source/rule-family reuse and previous selection exposure. After generation/verification, a schema probe displayed native labels in two PK provenance records. Labels were not used for generation, oracles, screening, selection or tuning, but strict zero-label-access was not fully preserved. No independent-final or 100% contamination-free claim is made.
+- Kev, autotrust/JEV-27B-VL and TypeSafe API are provenance-limited historical references, not newly matched runs. Some official values lack matching raw archival probabilities; no new NLL, vision or latency measurements are invented.
+
+## Historical release results
+
+**The tables below describe earlier v0.2.0 / v0.3.0 experiments, not current default HF weights.** They remain useful for training curves and method comparisons. Historical references were run on one NVIDIA H20 unless marked *board* or *reported*.
 
 | Model | What it is |
 |---|---|

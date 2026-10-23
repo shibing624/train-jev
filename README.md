@@ -21,7 +21,7 @@
 - **三种决策题型，一个请求问完**：是非题（`noul`）、选择题（`choice`）、打分题（`score`）共享同一段文本，各题独立作答。
 - **概率默认已校准**：模型附带按题型拟合的温度，便于设置自动处理与人工复核的阈值；新领域可重新校准。
 - **开箱即用**：4B 和 27B 两个 LoRA 模型已发布在 Hugging Face，一行命令启动服务。
-- **准确率高、校准误差低**：27B 在封存同题 PK 上达到 78.72% 宏平均准确率，transfer-v4 上 ECE 为 0.032。
+- **决策能力持续提升**：27B 在 train-jev-pk 上达到 79.52% 宏平均准确率，公开 Decision Index 全量得分 57.01；4B 分别为 76.03% 和 42.00。
 - **能看图**：`trainjev.serve --vision` 支持 TypeSafe 风格的图片 `assets`，可用 JSON/base64 或 multipart 上传，在同一个 `/v1/systemone` 请求里问是非、选择和打分题；见[图片接口](docs/serving.md#图片输入typesafe-assets)。
 - **可复用的训练方法**：KL 蒸馏、金标监督、规则数据回放、多卡 DDP / FSDP2 和断点续训，支持混入自己的标注数据。
 
@@ -34,35 +34,27 @@
 
 ## 效果
 
-同一评测内使用相同题目；官方 API 的部分结果来自官方榜单及 Kev 报告。↑ 越高越好，↓ 越低越好。
+Ours 为当前发布模型；Kev、autotrust 和官方 API 列是历史参照，未随本轮重新运行。↑ 越高越好，↓ 越低越好。
 
 | 评测 | train-jev-4b-lora<br>（Ours） | train-jev-27b-lora<br>（Ours） | Kev-4B | autotrust/JEV-27B-VL | TypeSafe Jev v1.13<br>（官方 API） |
 |---|---:|---:|---:|---:|---:|
 | **[train-jev-pk](data/train-jev-pk/)**（2,494 题，22 个任务） | | | | | |
-| 任务宏平均准确率 ↑ | 74.18% | **78.72%** | 63.50% | 73.47% | – |
-| 公开金标（PAWS / AQuA / QASC / HelpSteer2） ↑ | 63.25% | **70.65%** | 56.70% | 62.24% | – |
-| 旧分类任务（12 个） ↑ | 69.89% | **74.89%** | 70.11% | 72.67% | – |
-| 精确规则任务（6 类） ↑ | 90.06% | **91.77%** | 54.79% | 82.57% | – |
-| 校准后 NLL ↓ | 0.751 | **0.629** | 1.018 | 0.761 | – |
-| ECE ↓ | 0.112 | **0.098** | 0.159 | 0.107 | – |
+| 任务宏平均准确率 ↑ | 76.03% | **79.52%** | 63.50% | 73.47% | – |
+| ECE ↓ | 0.0930 | **0.0901** | 0.159 | 0.107 | – |
 | **[train-jev-classification-pk](data/train-jev-classification-pk/)**（13 个场景，1,300 题） | | | | | |
-| 准确率 ↑ | 0.642 | 0.687 | 0.640 | 0.690 | **0.700** |
-| ECE ↓ | 0.050 | **0.048** | 0.083 | 0.094 | 0.130 |
-| Kev 没见过的 8 个来源，准确率 ↑ | 0.600 | 0.640 | 0.570 | **0.645** | **0.645** |
+| 准确率 ↑ | 0.6523 | 0.6938 | 0.640 | 0.690 | **0.700** |
+| ECE ↓ | 0.0622 | **0.0377** | 0.083 | 0.094 | 0.130 |
 | **[Kev transfer-v4](https://github.com/jaredpalmer/kev)**（656 题，训练时没见过的来源） | | | | | |
-| 准确率 ↑ | 0.805 | **0.858** | 0.817 | 0.852 | 0.857 |
-| ECE ↓ | 0.054 | **0.032** | 0.042 | 0.097 | – |
-| NLL ↓ | 0.596 | **0.377** | 0.435 | 0.460 | – |
-| **[Decision Index 0.3，采样得分](https://github.com/apolinario/decision-index)（6,000 题）** ↑ | 41.5 | 56.1 | 38.4 | 54.1 | **59.7** |
-| **[Decision Index 0.3，全量得分](https://github.com/apolinario/decision-index)（110,087 题）** ↑ | 39.01 | **55.58** | – | – | – |
-| **[零样本看图决策](https://github.com/apolinario/decision-index)**（5 个视觉集） ↑ | 0.693 | 0.765 | 不支持 | **0.782** | – |
-| 单题延迟 p50 | 42 ms | 151 ms | **17 ms** | 96 ms | 370 ms（含网络） |
+| 准确率 ↑ | 0.8201 | 0.8476 | 0.817 | 0.852 | **0.857** |
+| ECE ↓ | 0.0588 | 0.0681 | **0.042** | 0.097 | – |
+| **[Decision Index 0.3，采样得分](https://github.com/apolinario/decision-index)（6,000 请求）** ↑ | 43.84 | 57.54 | 38.4 | 54.1 | **59.7** |
+| **[Decision Index 0.3，全量得分](https://github.com/apolinario/decision-index)（110,087 请求）** ↑ | 42.00 | **57.01** | – | – | – |
 
-- **27B 准确率与校准兼顾**：train-jev-pk 78.72%，比 autotrust/JEV-27B-VL 高 5.25 个百分点；transfer-v4 准确率 0.858、ECE 0.032，对照为 0.852、0.097。
-- **4B 更轻量，也有竞争力**：train-jev-pk 74.18%，同尺寸 Kev-4B 为 63.50%；分类 PK 的 ECE 为 0.050，便于置信度阈值决策。
+- **两尺寸的综合决策能力提高**：相比上一发布的存档结果，DI 全量得分 4B 39.01 → 42.00、27B 55.58 → 57.01；train-jev-pk 准确率分别为 76.03% / 79.52%。
+- **提升不是全面的**：27B transfer-v4 准确率 85.82% → 84.76%，ECE 0.0316 → 0.0681；4B 的分类和 transfer ECE 也变差。按自己的任务选模型，不把综合分提升当成所有任务都更好。
 - **方法可迁移到自己的业务**：小规模 LoRA + 决策头，结合软分布蒸馏、金标和规则监督，提供从训练到校准、评测、服务的完整链路。
 
-> Decision Index 是综合得分，不是准确率；采样为 35 个基准，全量为公开 37 基准文本面板，不与私有 Full 榜单混算。train-jev-pk 部分任务与训练同来源、同规则族但题目不同。两套本地题集发布完整索引和可分发原文，其他原文需按来源恢复，详见 [data/](data/)。延迟推理栈不同；评测协议及局限见 [结果文档](docs/results.md)。
+> Decision Index 是综合得分，不是准确率；公开 37 个计分基准的请求全部完成，但六个非计分诊断未请求，不等于完整私有榜单。旧结果来自原始存档与 CPU 复算；旧分类宽选项用 tournament，新模型用 single，不能把全部差异归因于权重。新版视觉没有重测，图像接口支持不代表视觉质量已重新验证。数据与来源限制见 [data/](data/) 和 [结果文档](docs/results.md)。
 
 ## 快速开始
 
@@ -102,7 +94,7 @@ curl -s localhost:8020/v1/systemone -H 'content-type: application/json' -d '{
 | [PAWS](https://huggingface.co/datasets/google-research-datasets/paws)、[AQuA-RAT](https://huggingface.co/datasets/deepmind/aqua_rat)、[QASC](https://huggingface.co/datasets/allenai/qasc)、[HelpSteer2](https://huggingface.co/datasets/nvidia/HelpSteer2) | 释义判断、数学与科学选择题、正确性评分 | 15,999 |
 | 独立校验的规则样本（CC0） | 路由、证据、指代、退款换算、日历和条件计数 | 10,000 |
 
-增强训练每步 **87.5% 蒸馏回放 + 12.5% 新监督**；只训练 LoRA 和决策头，温度在独立校准集上拟合。
+当前发布在原有蒸馏、金标和规则基础上，进一步使用 [tasksource typed-decisions](https://huggingface.co/datasets/tasksource/tasksource-jev-typed-decisions) 的 12,947 行任务来源数据，覆盖常识、阅读、投票软标签、实体和法律任务。各阶段采样不同，不能把旧的 12.5% 配方当成当前全部训练过程；实际曝光和参数见模型包的 `training_recipe.json`。本轮发布沿用各自原有校准，不在新评测上重拟合。
 
 ```bash
 # 基础蒸馏：下载数据与底座，启动训练
