@@ -460,5 +460,20 @@
       "sha256": "1ba96ce881c3bd601cd9759fe7dd37b03028af7e5f88c021ed4ef961c07a4e5c",
       "bytes": 49146
     }
+  },
+  "publication": {
+    "hf_upload_completed": true,
+    "clean_download_verified": true,
+    "previous_tags_preserved": true,
+    "tag": "v0.4.0",
+    "code_revision": "6615a57e0d73912f7080a913f2b1ca306aa0fc67",
+    "hf_commits": {
+      "shibing624/train-jev-4b-lora": "2ead99963ed0daa38b8b58ac301f156a15b99986",
+      "shibing624/train-jev-27b-lora": "3f2ef6cd3364a8792d9832d24407706e5e9c3032"
+    },
+    "manifests_sha256": {
+      "4b": "c7a239f12893b196efa1b669fdd828b5804b3f6e5a2b362361e9570d653741f8",
+      "27b": "5df5719cac6fa610d67ed52201bb575f23a251077222c6ddeee5cef132fbaa51"
+    }
   }
 }
