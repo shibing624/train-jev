@@ -34,15 +34,6 @@
 
 ## 效果
 
-> **本地候选构建 `v0.4.0-di-priority`（20261021，尚未上传或采纳）**：两个完整提示双向注意力候选在同一冻结开发样本（37 基准、6,010 个完整请求、52,902 个子答案）上的结果如下。这是开发/模型选择结果，不是独立测试、全量 Full 榜单或 SOTA。后面的历史评测表不能归到新候选；新候选的 PK / SDK 全套业务基准 / 视觉未测，且不支持图片。必须显式传 `--experimental_prompt_bidirectional`，完整注意力层双向、线性层仍因果，无 KV 缓存或分块提示。
-
-| 本地双向候选 | 同样本候选 DI | 同样本原模型 DI | 差值（DI 点） |
-|---|---:|---:|---:|
-| 4B step512（原 v0.4） | 42.8546768968 | 40.7382385987 | +2.1164382981 |
-| 27B step256（原 v0.3） | 57.816997761426926 | 54.02671962678486 | +3.7902781346420653 |
-
-两个新包均已用实际安装的 `typesafe_sdk==0.7.4` / `TypeSafeClient` 通过真实 localhost HTTP 验证 `noul`、3/77/256 选项 `choice` 和 2/5/6/10 级 `score`（每包 8 个合成接口用例），不是完整 SDK 业务基准。`score.score` 是 Σi·pᵢ，`score.confidence` 是最大等级概率，`legend` 保留原始 JSON 评分标准；SDK 将等级键转换为整数。此置信度定义不代表与官方模型的计算/校准公式一致。另行要求的 `typedclient._model_sdk` / `Ordinal` 未安装，不能声称验证通过。
-
 同一评测内使用相同题目；官方 API 的部分结果来自官方榜单及 Kev 报告。↑ 越高越好，↓ 越低越好。
 
 | 评测 | train-jev-4b-lora<br>（Ours） | train-jev-27b-lora<br>（Ours） | Kev-4B | autotrust/JEV-27B-VL | TypeSafe Jev v1.13<br>（官方 API） |
@@ -83,18 +74,6 @@ python -m trainjev.serve --base Qwen/Qwen3.5-4B --adapter shibing624/train-jev-4
 
 首次运行会自动下载底座、LoRA、决策头和温度。换成 27B：
 `--base Qwen/Qwen3.8-27B --adapter shibing624/train-jev-27b-lora`。
-
-本地新候选需使用对应的新模型包（不是上述尚未更新的 HF 默认版本）：
-
-```bash
-python -m trainjev.serve --base Qwen/Qwen3.5-4B --adapter ./train-jev-4b-lora \
-    --experimental_prompt_bidirectional --port 8020
-
-python -m trainjev.serve --base Qwen/Qwen3.8-27B --adapter ./train-jev-27b-lora \
-    --experimental_prompt_bidirectional --name train-jev-27b --port 8020
-```
-
-该实验模式要求 `transformers==5.17.0`，仅支持独立、右填充的完整文本提示和 SDPA；图片请求返回 422，`--vision` / `--proxy` 与该标志冲突。旧因果模型无需新标志，其图片接口保持不变。新包保留原温度字节、未重新拟合；最新训练配方及数据来源以模型包 `training_recipe.json` 为准，不适用下文历史的 87.5% 回放配方。
 
 ### 发一个请求
 

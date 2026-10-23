@@ -27,7 +27,6 @@ import time
 import torch
 import torch.distributed as dist
 
-from trainjev.attention import configure_prompt_attention, save_attention_metadata
 from trainjev.data import encode_many, micro_batches
 from trainjev.metrics import metrics
 from trainjev.modeling import VERBALIZER_IDS, DecisionHead, check_verbalizers, last_hidden
@@ -48,7 +47,7 @@ def init_rotary(body):
             m.attention_scaling = scaling
 
 
-def load_sharded(base, rank, dev, shard, cpu_offload=False, *, experimental_prompt_bidirectional=False):
+def load_sharded(base, rank, dev, shard, cpu_offload=False):
     """Build the Qwen3.5 text model on the meta device, shard it with ``shard(body)``, then fill the shards from rank
     0's copy of the checkpoint. -> ``(body, init_rows)`` with ``init_rows`` the fp32 ``lm_head`` rows of the
     verbalizers (from rank 0, broadcast)."""
@@ -57,7 +56,6 @@ def load_sharded(base, rank, dev, shard, cpu_offload=False, *, experimental_prom
 
     with torch.device("meta"):
         body = AutoModelForCausalLM.from_config(AutoConfig.from_pretrained(base), dtype=torch.float32).model
-    configure_prompt_attention(body, experimental_prompt_bidirectional)
     shard(body)
     if cpu_offload:  # parameter shards live on the host; buffers (rotary) still go to the GPU, as fully_shard does
         body.to_empty(device="cpu")
@@ -117,8 +115,7 @@ def main_full(a):
             fully_shard(layer, **kw)
         fully_shard(body, **kw)
 
-    body, init_rows = load_sharded(a.base, rank, dev, shard, a.cpu_offload,
-                                  experimental_prompt_bidirectional=a.experimental_prompt_bidirectional)
+    body, init_rows = load_sharded(a.base, rank, dev, shard, a.cpu_offload)
     body.config.use_cache = False
     if not a.no_gc:
         body.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
@@ -201,10 +198,8 @@ def main_full(a):
             t = time.time()
             save_file({k: v.to(torch.bfloat16).contiguous() for k, v in sd.items()},
                       os.path.join(d, "model.safetensors"), metadata={"format": "pt", "trainjev": "full-v1"})
-            attention_config = save_attention_metadata(d, body)
             torch.save({"weight": head.weight.detach().cpu(), "bias": head.bias.detach().cpu(),
-                        "verbalizer_ids": VERBALIZER_IDS, "base": a.base, "full": True, "args": vars(a),
-                        "attention_config": attention_config},
+                        "verbalizer_ids": VERBALIZER_IDS, "base": a.base, "full": True, "args": vars(a)},
                        os.path.join(d, "head.pt"))
             log(f"saved {d} ({time.time() - t:.0f}s)")
         del sd
