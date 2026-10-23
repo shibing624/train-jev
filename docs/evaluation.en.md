@@ -1,6 +1,6 @@
 # Evaluation and published-input reproduction
 
-[中文](evaluation.md)
+[中文](https://github.com/shibing624/train-jev/docs/evaluation.md)
 
 The completed 4B/27B main result uses five complementary suites. It is not enough to compare training accuracy,
 and it is not appropriate to mix a new full panel with an old sample or to change readout/backend silently.
@@ -11,13 +11,13 @@ and it is not appropriate to mix a new full panel with an old sample or to chang
 | [Decision Index 0.3 legacy sample](https://github.com/apolinario/decision-index) | multi-area decision skill | 6,000 requests;35 indexed benchmarks |
 | [Kev transfer-v4](https://github.com/jaredpalmer/kev) | accuracy and calibration on sources unseen in Kev training | 656 clean decisions |
 | [vision](https://github.com/apolinario/decision-index) | retained zero-shot image decisions | 1,444 actual rows over 5 datasets |
-| [train-jev-classification-pk](../data/train-jev-classification-pk) | paired multilingual accuracy/calibration | 1,300 rows, 13×100 |
+| [train-jev-classification-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-classification-pk) | paired multilingual accuracy/calibration | 1,300 rows, 13×100 |
 
 Wide-choice diagnostics are a separate sixth comparison: same 4B checkpoint, 600 each CLINC150/BANKING77/MASSIVE en.
-All numbers and limitations are in [results.en.md](results.en.md). No test labels are used to fit temperatures or select a
+All numbers and limitations are in [results.en.md](https://github.com/shibing624/train-jev/docs/results.en.md). No test labels are used to fit temperatures or select a
 prompt.
 
-v0.3.0 also uses [train-jev-pk](../data/train-jev-pk): 2,494 rows over 22 tasks, historically called the “sealed same-question PK”.
+v0.3.0 also uses [train-jev-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-pk): 2,494 rows over 22 tasks, historically called the “sealed same-question PK”.
 It includes public sources seen in training and in-family rule items, so it is not wholly source-independent generalisation.
 These fixed evaluation rows must not be reused for training, checkpoint selection or temperature fitting.
 
@@ -131,8 +131,8 @@ The official DI 0.3 text adapter intentionally retains 501 HLE text-MC requests,
 
 ## 6. train-jev-pk, train-jev-classification-pk and wide diagnostics
 
-Both fixed datasets publish every row's index, not every row's raw text. [train-jev-pk](../data/train-jev-pk) has 2,494 rows / 22 tasks:
-1,594 inputs are included and 900 rows are index-and-label only. [train-jev-classification-pk](../data/train-jev-classification-pk) has 1,300 rows / 13 tasks:
+Both fixed datasets publish every row's index, not every row's raw text. [train-jev-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-pk) has 2,494 rows / 22 tasks:
+1,594 inputs are included and 900 rows are index-and-label only. [train-jev-classification-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-classification-pk) has 1,300 rows / 13 tasks:
 500 inputs are included and 800 rows are index-and-label only. Raw text with uncleared licenses is not redistributed.
 Included text retains upstream attribution and licenses; see each dataset README. The code license does not cover upstream text.
 
@@ -176,7 +176,7 @@ labels, not the trained six-level score protocol. Compare paired scenario/index/
 
 Wide diagnostics record every actual strategy/option-order hash/model input size. Nine warm-up requests were
 excluded; an empty internal batching call is not a model forward. The observed permute gain and underconfidence
-are in [results.en.md §8](results.en.md#8-wide-choice-questions-17256-options). Choose strategy/post-average calibration on independent dev and evaluate separately, not by
+are in [results.en.md §8](https://github.com/shibing624/train-jev/docs/results.en.md#8-wide-choice-questions-17256-options). Choose strategy/post-average calibration on independent dev and evaluate separately, not by
 fitting temperatures on these 600 test examples. A small smoke is not statistical evidence of SOTA.
 
 ## 7. What the reports do not claim

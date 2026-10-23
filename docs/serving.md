@@ -1,6 +1,6 @@
 # 部署与推理
 
-[English](serving.en.md)
+[English](https://github.com/shibing624/train-jev/docs/serving.en.md)
 
 ## 启动服务
 
@@ -145,7 +145,7 @@ print(response.json()["answers"])
 
 `GET /health` 的 `images` 字段说明是否开启本地视觉或 proxy。请求 `model` 是兼容字段，实际模型由启动参数确定，不按请求切换模型。该本地服务不验证 TypeSafe 的 Bearer key；公网部署请在反向代理配置鉴权、限流和总请求体限制。
 
-这是图片输入能力，不保证每个视觉判断都正确；模型仍是仅文本训练后的零样本视觉迁移。可用 `trainjev.eval_vision` 验证图像任务（见 [evaluation.md](evaluation.md#5-看图决策)）。
+这是图片输入能力，不保证每个视觉判断都正确；模型仍是仅文本训练后的零样本视觉迁移。可用 `trainjev.eval_vision` 验证图像任务（见 [evaluation.md](https://github.com/shibing624/train-jev/docs/evaluation.md#5-看图决策)）。
 
 ## 示例
 
@@ -188,8 +188,8 @@ python examples/local_inference.py --base Qwen/Qwen3.5-4B --adapter shibing624/t
 | `permute` | **0.771** | 0.218 | 171 ms |
 
 `permute` 最准但偏保守（置信度偏低）；`tournament` 校准最好。分数据集的结果见
-[results.md](results.md#8-超过-16-个选项的选择题)。两个发布模型的历史分类 PK / 宽选项评测用 `tournament`，
+[results.md](https://github.com/shibing624/train-jev/docs/results.md#8-超过-16-个选项的选择题)。两个发布模型的历史分类 PK / 宽选项评测用 `tournament`，
 要复现这些结果请加 `--strategy tournament`；完整公开 Decision Index 文本面板用 `single`，不能把不同协议混在一起。
-固定发布题库 [train-jev-pk](../data/train-jev-pk) / [train-jev-classification-pk](../data/train-jev-classification-pk)
-请按 [评测文档](evaluation.md#6-train-jev-pktrain-jev-classification-pk-与宽选项)恢复缺失输入并用本地 HF 评测脚本运行，
+固定发布题库 [train-jev-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-pk) / [train-jev-classification-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-classification-pk)
+请按 [评测文档](https://github.com/shibing624/train-jev/docs/evaluation.md#6-train-jev-pktrain-jev-classification-pk-与宽选项)恢复缺失输入并用本地 HF 评测脚本运行，
 保留原始问题与评分等级说明，不用 HTTP 改写代替该协议，也不保证所有 GPU / batch 推理栈的概率逐位一致。

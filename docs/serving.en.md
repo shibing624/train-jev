@@ -1,6 +1,6 @@
 # Serving and inference
 
-[中文](serving.md)
+[中文](https://github.com/shibing624/train-jev/docs/serving.md)
 
 ## Start a server
 
@@ -147,7 +147,7 @@ print(response.json()["answers"])
 
 `GET /health` includes `images` for local vision/proxy availability. The request's `model` is a compatibility field; the actual model is selected at startup. The local server does not validate TypeSafe Bearer keys; use reverse-proxy auth, rate limiting and body-size limits for public deployment.
 
-Image input support is not a guarantee of visual accuracy. This remains zero-shot visual transfer after text-only training. Run `trainjev.eval_vision` for task evaluation (see [evaluation.en.md](evaluation.en.md#5-vision)).
+Image input support is not a guarantee of visual accuracy. This remains zero-shot visual transfer after text-only training. Run `trainjev.eval_vision` for task evaluation (see [evaluation.en.md](https://github.com/shibing624/train-jev/docs/evaluation.en.md#5-vision)).
 
 ## Examples
 
@@ -190,9 +190,9 @@ Measured on train-jev-4b-lora, 600 questions each from CLINC150 (150 options), B
 | `permute` | **0.771** | 0.218 | 171 ms |
 
 `permute` is the most accurate but under-confident; `tournament` is the best calibrated. Per-dataset numbers are in
-[results.en.md](results.en.md#8-wide-choice-questions-17256-options). Both models' historical classification PK / wide-choice results use
+[results.en.md](https://github.com/shibing624/train-jev/docs/results.en.md#8-wide-choice-questions-17256-options). Both models' historical classification PK / wide-choice results use
 `tournament`; pass `--strategy tournament` to reproduce those runs. The full public Decision Index text panel uses `single`;
-do not mix these protocols. For the fixed [train-jev-pk](../data/train-jev-pk) / [train-jev-classification-pk](../data/train-jev-classification-pk)
+do not mix these protocols. For the fixed [train-jev-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-pk) / [train-jev-classification-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-classification-pk)
 releases, restore missing inputs and use the local HF evaluator described in the
-[evaluation guide](evaluation.en.md#6-train-jev-pk-train-jev-classification-pk-and-wide-diagnostics).
+[evaluation guide](https://github.com/shibing624/train-jev/docs/evaluation.en.md#6-train-jev-pk-train-jev-classification-pk-and-wide-diagnostics).
 Preserve the original question / score legend instead of substituting HTTP rewriting; bit-identical probabilities are not guaranteed across GPU / batching stacks.

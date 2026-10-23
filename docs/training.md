@@ -1,6 +1,6 @@
 # 从 Qwen 底座训练 train-jev
 
-[English](training.en.md)
+[English](https://github.com/shibing624/train-jev/docs/training.en.md)
 
 本仓库用 **LoRA + 24 槽位决策头**训练能返回概率的决策模型。完整路线是：从公开 Qwen 底座开始，用 Jev 目标分布蒸馏，再加入金标与规则数据增强判断能力，最后校准并部署。
 
@@ -147,7 +147,7 @@ CKPT=runs/jev-4b-supervised/step00512 bash scripts/run_serve.sh
 bash scripts/run_serve.sh
 ```
 
-更多推理参数见 [部署文档](serving.md)。
+更多推理参数见 [部署文档](https://github.com/shibing624/train-jev/docs/serving.md)。
 
 ## 6. 实测耗时与训练结果
 
@@ -160,9 +160,9 @@ bash scripts/run_serve.sh
 
 上表是基础蒸馏与历史金标续训实验的实测时间，不是新任务来源阶段的耗时；本轮没有提供可核验的新增训练耗时，因此不外推。当前权重的选点见上一节。
 
-| 已发布模型 | [train-jev-pk](../data/train-jev-pk) 准确率 ↑ | [transfer-v4](https://github.com/jaredpalmer/kev) 准确率 ↑ | transfer-v4 ECE ↓ | [Decision Index 全量](https://github.com/apolinario/decision-index) 得分 ↑ |
+| 已发布模型 | [train-jev-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-pk) 准确率 ↑ | [transfer-v4](https://github.com/jaredpalmer/kev) 准确率 ↑ | transfer-v4 ECE ↓ | [Decision Index 全量](https://github.com/apolinario/decision-index) 得分 ↑ |
 |---|---:|---:|---:|---:|
 | shibing624/train-jev-4b-lora | 76.03% | 0.8201 | 0.0588 | 42.00 |
 | shibing624/train-jev-27b-lora | 79.52% | 0.8476 | 0.0681 | 57.01 |
 
-这些是发布模型在固定评测协议下的结果，不是 PAWS 示例训练的预期分数。与 [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL)、Kev 和 TypeSafe API 的对比及局限见 [结果文档](results.md)。
+这些是发布模型在固定评测协议下的结果，不是 PAWS 示例训练的预期分数。与 [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL)、Kev 和 TypeSafe API 的对比及局限见 [结果文档](https://github.com/shibing624/train-jev/docs/results.md)。

@@ -13,6 +13,8 @@
 #### documentation and data
 
 - 重写中英文训练文档：从 Qwen 底座开始，介绍公开训练集、蒸馏、金标续训、校准、耗时和结果，删除未公开构建流程的细节。
+- 重写中英文 README 为用户视角：先给「三步跑起来」与请求/响应示例，再讲模型选择、效果、训练与原理；README 不再重复免责说明，完整口径保留在 `docs/results.md`。
+- 仓库内文档链接统一改为 `https://github.com/shibing624/train-jev/...` 绝对地址，在 GitHub 之外（PyPI、模型卡等）渲染时同样可跳转。
 - `run_serve.sh` 默认加载 HF 模型；训练脚本支持 `INIT_ADAPTER`、`MIX`、`MIX_FRACTION`、`LR` 和 `HEAD_LR`；`run_eval.sh` 默认不重新校准已发布模型。
 - 发布 `data/train-jev-pk`（2,494 题）和 `data/train-jev-classification-pk`（1,300 题）的完整索引、标签与可分发输入，新增恢复和本地评测脚本。未核验许可的原文不包含在仓库中；缺失输入不会被计作完整评测。
 
@@ -84,4 +86,4 @@
 - 13 个数据集的分类 PK：从 HF Hub 构建逐字节一致的 suite（`scripts/pk_build.py`），以及可断点续跑、带配对报告的评测（`scripts/pk_benchmark.py`）。
 - Qwen3.8-27B 底座已端到端跑通；脚本 `scripts/run_train_27b.sh`。
 - Python >= 3.12。
-- Qwen3.5-4B 的结果见 [docs/results.md](docs/results.md)。
+- Qwen3.5-4B 的结果见 [docs/results.md](https://github.com/shibing624/train-jev/docs/results.md)。

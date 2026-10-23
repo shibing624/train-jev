@@ -1,6 +1,6 @@
 # 评测结果
 
-[English](results.en.md)
+[English](https://github.com/shibing624/train-jev/docs/results.en.md)
 
 ## 当前发布：v0.4.0
 
@@ -17,7 +17,7 @@
 | 历史 DI35 采样（6,000 请求） ↑ | 41.488869 | **43.839975** | 56.148171 | **57.543750** |
 | 公开 DI37 全量（110,087 请求） ↑ | 39.013227 | **41.998693** | 55.580547 | **57.014550** |
 
-**综合得分提高，但存在退步。** 27B transfer 准确率下降 1.0671 个百分点、ECE 明显增大；4B 分类和 transfer 的 ECE 也变差。各个 DI 基准并非全部上升，负向分项和未经四舍五入的值保留在 [机器可读报告](../reports/v0.4.0/results.json)。
+**综合得分提高，但存在退步。** 27B transfer 准确率下降 1.0671 个百分点、ECE 明显增大；4B 分类和 transfer 的 ECE 也变差。各个 DI 基准并非全部上升，负向分项和未经四舍五入的值保留在 [机器可读报告](https://github.com/shibing624/train-jev/reports/v0.4.0/results.json)。
 
 ### 本轮口径与限制
 
@@ -154,11 +154,11 @@ Kev 在加载时丢掉了视觉塔，不能处理图像。
 
 来自 13 个公开数据集的 1,300 题（每个场景 seed 0 打乱后取前 100 题）。所有系统拿到相同的文本（前 4,000 个字符）、
 数据集的标签名，以及每种题型一个固定的问题，不针对任务做 prompt 工程。固定题库现以
-[train-jev-classification-pk](../data/train-jev-classification-pk) 发布：全部索引和标签、500 题输入；其余 800 题仅含索引，
+[train-jev-classification-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-classification-pk) 发布：全部索引和标签、500 题输入；其余 800 题仅含索引，
 需要从 `scripts/pk_build.py --out data/pk` 生成的来源文件恢复。原文许可与署名见数据集 README，未核验许可的原文不随仓库发布。
 `scripts/pk_build.py` 历史上从 Hugging Face Hub 逐字节重建了题库。`scripts/pk_benchmark.py` 仍用于原有每来源最多 600 行文件的服务对比；历史上在核对过的环境中重跑
 train-jev-4b-lora 复现了存档概率（最大 |Δp| 6e-8），这不是所有 GPU / batch 推理栈的严格等价保证。
-发布题库的恢复和本地 HF 评测见 [评测文档](evaluation.md#6-train-jev-pktrain-jev-classification-pk-与宽选项)，不改变下表的历史服务协议或分数。
+发布题库的恢复和本地 HF 评测见 [评测文档](https://github.com/shibing624/train-jev/docs/evaluation.md#6-train-jev-pktrain-jev-classification-pk-与宽选项)，不改变下表的历史服务协议或分数。
 
 | 场景 | 题型 | 语言 | 标签数 | 来源 | Kev 是否训过该来源 |
 |---|---|---|---:|---|:---:|
@@ -266,7 +266,7 @@ BANKING77 / MASSIVE 的输入文件与 PK 的 600 题题库一致。
 | transfer-v4 准确率（656 行） | **0.77896** | 0.76220 | ↑ |
 | transfer-v4 ECE | 0.07468 | **0.06520** | ↓ |
 | transfer-v4 NLL | 0.74455 | **0.66690** | ↓ |
-| [train-jev-classification-pk](../data/train-jev-classification-pk) 准确率（13 数据集，1,300 行） | **0.64692** | 0.61077 | ↑ |
+| [train-jev-classification-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-classification-pk) 准确率（13 数据集，1,300 行） | **0.64692** | 0.61077 | ↑ |
 | PK：Kev 训过的 5 个来源（500 行） | **0.718** | 0.672 | ↑ |
 | PK：Kev 没见过的 8 个来源（800 行） | **0.6025** | 0.5725 | ↑ |
 | 看图决策 mean skill（5 个集合等权） | **0.69729** | 0.68757 | ↑ |
@@ -306,7 +306,7 @@ Decision Index 对超过 16 个选项的题使用 `tournament` 读法；autotrus
 | transfer-v4 准确率（656 行） | 0.77896 | **0.85213** | 0.85061 | ↑ |
 | transfer-v4 ECE | 0.07468 | 0.09731 | **0.05308** | ↓ |
 | transfer-v4 NLL | 0.74455 | 0.46022 | **0.41130** | ↓ |
-| [train-jev-classification-pk](../data/train-jev-classification-pk) 准确率（13 数据集，1,300 行） | 0.64692 | **0.690** | 0.67769 | ↑ |
+| [train-jev-classification-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-classification-pk) 准确率（13 数据集，1,300 行） | 0.64692 | **0.690** | 0.67769 | ↑ |
 | PK ECE | **0.07569** | 0.094 | 0.10294 | ↓ |
 | PK：Kev 训过的 5 个来源（500 行） | 0.718 | **0.762** | 0.754 | ↑ |
 | PK：Kev 没见过的 8 个来源（800 行） | 0.6025 | **0.645** | 0.630 | ↑ |
@@ -371,7 +371,7 @@ HLE 的官方 chance baseline 为 0.1641，因此两模型的 HLE chance-correct
 这些不是独占部署下的单题延迟或吞吐保证。
 
 全量未压缩输入 SHA256：`1a2875db806c4d7d8f5fe0f2ddaa01c7d324a304a10cb15db16d57d5a915136b`。
-机器可读的分数、37 项覆盖数量、协议与指纹见 [di37_results.json](../reports/v0.2.0/di37_results.json)。
+机器可读的分数、37 项覆盖数量、协议与指纹见 [di37_results.json](https://github.com/shibing624/train-jev/reports/v0.2.0/di37_results.json)。
 新全量中 27B 比 4B 高 16.48 个指数点；这是不同大小/底座模型的对比，不是 v0.3 新数据训练的增益。
 旧 35、新 37 quick 和新 37 full 的输入覆盖/读法不同，不能把它们的差值直接解释为训练或读法的因果提升。
 
@@ -402,14 +402,14 @@ checkpoint 只在独立开发集（3,550 题）上挑选：宏平均增益最高
 
 ### 13.2 train-jev-pk（2,494 题，22 个任务）
 
-[train-jev-pk](../data/train-jev-pk) 对应原称“封存同题 PK”的固定题库，改名不改变题目、标签或分数。
+[train-jev-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-pk) 对应原称“封存同题 PK”的固定题库，改名不改变题目、标签或分数。
 发布全部有序索引和标签，附带 1,594 题输入；其余 900 题只有索引和标签，需从 `scripts/pk_build.py --out data/pk`
 生成的来源文件按固定行号恢复并校验输入哈希。原文许可、署名和恢复说明见数据集 README 及
-[评测文档](evaluation.md#6-train-jev-pktrain-jev-classification-pk-与宽选项)。这套题含与训练相同的公开来源和规则族，
+[评测文档](https://github.com/shibing624/train-jev/docs/evaluation.md#6-train-jev-pktrain-jev-classification-pk-与宽选项)。这套题含与训练相同的公开来源和规则族，
 不是全部 22 个任务都独立于训练来源；已用于模型比较，不能再用于训练、选点或温度拟合。
 
 六个模型使用同一批输入，各用原生推理与自带温度。逐任务准确率和全部配对比较见
-[reports/v0.3.0/external_final2.json](../reports/v0.3.0/external_final2.json)，汇总表见 [README](../README.md#效果)。
+[reports/v0.3.0/external_final2.json](https://github.com/shibing624/train-jev/reports/v0.3.0/external_final2.json)，汇总表见 [README](https://github.com/shibing624/train-jev/README.md#效果)。
 27B v0.3.0 对 autotrust/JEV-27B-VL 配对 +5.25pp [4.01, 6.50]，对 27B v0.2.0 +4.73pp [3.71, 5.80]，对 4B v0.3.0 +4.54pp [3.15, 5.91]。
 
 ### 13.3 历史评测（与 §2–§6 相同协议）
@@ -422,7 +422,7 @@ PK / transfer-v4 / Decision Index 采样走 `/v1/systemone`，宽选项 `tournam
 | test_set_30k KL（原始） ↓ | 0.0224 | 0.0230 | 0.0185 | 0.0185 |
 | OOD KL（原始） ↓ | 0.312 | 0.483 | 0.110 | 0.123 |
 | OOD choice top-1 ↑ | 0.888 | 0.900 | 0.935 | 0.940 |
-| [train-jev-classification-pk](../data/train-jev-classification-pk)（13 数据集）准确率 ↑ | 0.647 | 0.642 | 0.678 | 0.687 |
+| [train-jev-classification-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-classification-pk)（13 数据集）准确率 ↑ | 0.647 | 0.642 | 0.678 | 0.687 |
 | PK ECE ↓ | 0.076 | 0.050 | 0.103 | 0.048 |
 | PK：Kev 没见过的 8 个来源 ↑ | 0.603 | 0.600 | 0.630 | 0.640 |
 | transfer-v4 准确率 ↑ | 0.779 | 0.805 | 0.851 | 0.858 |
@@ -446,8 +446,8 @@ PK / transfer-v4 / Decision Index 采样走 `/v1/systemone`，宽选项 `tournam
   ACOS 的目标 per-review F1 / DI skill 上升，但逐字段准确率诊断下降约 0.14pp；不要把两项未校正显著下降误写为 HLE 或 ACOS 目标指标下降。
 - DI 题级诊断的区间不是指数的置信区间，McNemar 未做多重比较校正；五领域上涨不等于每项任务上涨。
   本次全量仍仅为公开 37 基准可评分文本面板，不是私有 Full 榜单或完整多模态 HLE。autotrust/JEV-27B-VL 只有历史 6,000 题结果，没有全量配对。
-  分数、逐基准 skill、协议、输入指纹和合并审计见 [di37_results.json](../reports/v0.3.0/di37_results.json)。
+  分数、逐基准 skill、协议、输入指纹和合并审计见 [di37_results.json](https://github.com/shibing624/train-jev/reports/v0.3.0/di37_results.json)。
 - OOD KL 上升是加入金标监督后偏离 Jev 教师分布的预期代价：准确率没有下降，在 jev-distill 校准切分上重拟合温度后
   4B / 27B 的 OOD KL 为 0.472 / 0.121，与原始 logits 接近。
-- 结论：v0.3.0 的配方在分布外评测上带来小幅、方向一致的提升（transfer-v4、Decision Index、校准），远小于 [train-jev-pk](../data/train-jev-pk) 上的增益；
+- 结论：v0.3.0 的配方在分布外评测上带来小幅、方向一致的提升（transfer-v4、Decision Index、校准），远小于 [train-jev-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-pk) 上的增益；
   后者包含与训练同族的规则题和训练中出现过的金标来源。

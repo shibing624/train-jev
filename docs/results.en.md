@@ -1,6 +1,6 @@
 # Results
 
-[中文](results.md)
+[中文](https://github.com/shibing624/train-jev/docs/results.md)
 
 ## Current release: v0.4.0
 
@@ -17,7 +17,7 @@ The default HF **train-jev-4b-lora** / **train-jev-27b-lora** weights are causal
 | Historical DI35 sample (6,000 requests) ↑ | 41.488869 | **43.839975** | 56.148171 | **57.543750** |
 | Full public DI37 (110,087 requests) ↑ | 39.013227 | **41.998693** | 55.580547 | **57.014550** |
 
-**Aggregate scores improve, with regressions.** 27B transfer accuracy loses 1.0671 points and ECE worsens substantially; 4B classification and transfer ECE also worsen. Not every DI benchmark improves. Negative components and exact unrounded values are retained in the [machine-readable report](../reports/v0.4.0/results.json).
+**Aggregate scores improve, with regressions.** 27B transfer accuracy loses 1.0671 points and ECE worsens substantially; 4B classification and transfer ECE also worsen. Not every DI benchmark improves. Negative components and exact unrounded values are retained in the [machine-readable report](https://github.com/shibing624/train-jev/reports/v0.4.0/results.json).
 
 ### Protocol and limitations
 
@@ -159,14 +159,14 @@ decide* transfers across modalities. Kev drops the vision tower at load time and
 
 1,300 rows (the first 100 of each scenario after a seed-0 shuffle) from 13 public datasets. Every system gets the same
 text (first 4,000 characters), the dataset's label names and one fixed question per primitive; there is no per-task
-prompt engineering. The fixed release is now [train-jev-classification-pk](../data/train-jev-classification-pk):
+prompt engineering. The fixed release is now [train-jev-classification-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-classification-pk):
 all indices and labels, with 500 inputs included and 800 index-only rows to restore from source files built by
 `scripts/pk_build.py --out data/pk`. See the dataset README for upstream licenses and attribution; text with uncleared
 licenses is not bundled. Historically, `scripts/pk_build.py` rebuilt the suite byte-for-byte from the Hugging Face Hub.
 `scripts/pk_benchmark.py` remains useful for server comparisons on the original source files of up to 600 rows each.
 In the historically checked environment, re-running train-jev-4b-lora reproduced the stored probabilities (max |Δp| 6e-8);
 this is not a strict equivalence guarantee for every GPU / batching stack. Restore and evaluate the published dataset locally with HF as described in
-the [evaluation guide](evaluation.en.md#6-train-jev-pk-train-jev-classification-pk-and-wide-diagnostics), without changing the historical server protocol or metrics below.
+the [evaluation guide](https://github.com/shibing624/train-jev/docs/evaluation.en.md#6-train-jev-pk-train-jev-classification-pk-and-wide-diagnostics), without changing the historical server protocol or metrics below.
 
 | scenario | primitive | lang | labels | source | in Kev's training sources |
 |---|---|---|---:|---|:---:|
@@ -290,7 +290,7 @@ Head lr 2e-4, micro-token budget 4,096 and no gradient checkpointing for both; t
 | transfer-v4 accuracy (656 rows) | **0.77896** | 0.76220 | ↑ |
 | transfer-v4 ECE | 0.07468 | **0.06520** | ↓ |
 | transfer-v4 NLL | 0.74455 | **0.66690** | ↓ |
-| [train-jev-classification-pk](../data/train-jev-classification-pk) accuracy (13 datasets, 1,300 rows) | **0.64692** | 0.61077 | ↑ |
+| [train-jev-classification-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-classification-pk) accuracy (13 datasets, 1,300 rows) | **0.64692** | 0.61077 | ↑ |
 | PK: 5 Kev-seen sources (500 rows) | **0.718** | 0.672 | ↑ |
 | PK: 8 Kev-unseen sources (800 rows) | **0.6025** | 0.5725 | ↑ |
 | vision mean skill (5 sets, equal weight) | **0.69729** | 0.68757 | ↑ |
@@ -333,7 +333,7 @@ checkpointing on, r16, LoRA / head lr 1e-4 / 2e-4, 4x H20, seed 0, 5,123 steps. 
 | transfer-v4 accuracy (656 rows) | 0.77896 | **0.85213** | 0.85061 | ↑ |
 | transfer-v4 ECE | 0.07468 | 0.09731 | **0.05308** | ↓ |
 | transfer-v4 NLL | 0.74455 | 0.46022 | **0.41130** | ↓ |
-| [train-jev-classification-pk](../data/train-jev-classification-pk) accuracy (13 datasets, 1,300 rows) | 0.64692 | **0.690** | 0.67769 | ↑ |
+| [train-jev-classification-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-classification-pk) accuracy (13 datasets, 1,300 rows) | 0.64692 | **0.690** | 0.67769 | ↑ |
 | PK ECE | **0.07569** | 0.094 | 0.10294 | ↓ |
 | PK: 5 Kev-seen sources (500 rows) | 0.718 | **0.762** | 0.754 | ↑ |
 | PK: 8 Kev-unseen sources (800 rows) | 0.6025 | **0.645** | 0.630 | ↑ |
@@ -401,7 +401,7 @@ Full request p50 / p95: **45.9 / 459.1 ms** for 4B, **154.6 / 2,470.7 ms** for 2
 Requests may contain multiple questions and the hardware was shared with occupier/other jobs; these are not exclusive-GPU per-question latency guarantees.
 
 Uncompressed input SHA256: `1a2875db806c4d7d8f5fe0f2ddaa01c7d324a304a10cb15db16d57d5a915136b`.
-Machine-readable scores, 37 catalog counts, protocol and fingerprints: [di37_results.json](../reports/v0.2.0/di37_results.json).
+Machine-readable scores, 37 catalog counts, protocol and fingerprints: [di37_results.json](https://github.com/shibing624/train-jev/reports/v0.2.0/di37_results.json).
 27B leads 4B by 16.48 index points on this full panel, a comparison of different backbones/sizes—not a v0.3 training-data gain.
 Do not interpret differences across historical 35, new 37 quick and new 37 full as causal training/readout improvements.
 
@@ -435,16 +435,16 @@ set only (highest macro gain with no >16-option regression); both sizes picked s
 
 ### 13.2 train-jev-pk (2,494 questions, 22 tasks)
 
-[train-jev-pk](../data/train-jev-pk) is the fixed benchmark historically called “sealed same-question PK”; the rename changes no inputs, labels or scores.
+[train-jev-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-pk) is the fixed benchmark historically called “sealed same-question PK”; the rename changes no inputs, labels or scores.
 Every ordered index and label is published, with 1,594 inputs included and 900 index-and-label-only rows to restore
 from source files generated by `scripts/pk_build.py --out data/pk`, using fixed row indices and verified input hashes.
-See the dataset README and [evaluation guide](evaluation.en.md#6-train-jev-pk-train-jev-classification-pk-and-wide-diagnostics)
+See the dataset README and [evaluation guide](https://github.com/shibing624/train-jev/docs/evaluation.en.md#6-train-jev-pk-train-jev-classification-pk-and-wide-diagnostics)
 for source licenses, attribution and restoration. It includes public sources and rule families seen in training:
 not all 22 tasks are independent of training sources. These rows have been used for model comparison and must not be reused for training, checkpoint selection or calibration fitting.
 
 Six models, identical inputs, each with its native stack and shipped temperatures. Per-task accuracy and all paired
-comparisons: [reports/v0.3.0/external_final2.json](../reports/v0.3.0/external_final2.json); summary table in the
-[README](../README_EN.md#results).
+comparisons: [reports/v0.3.0/external_final2.json](https://github.com/shibing624/train-jev/reports/v0.3.0/external_final2.json); summary table in the
+[README](https://github.com/shibing624/train-jev/README_EN.md#results).
 27B v0.3.0 vs autotrust/JEV-27B-VL: paired +5.25pp [4.01, 6.50]; vs 27B v0.2.0 +4.73pp [3.71, 5.80]; vs 4B v0.3.0 +4.54pp [3.15, 5.91].
 
 ### 13.3 Historical suites (same protocol as §2–§6)
@@ -458,7 +458,7 @@ jev-distill teacher, so they are not used for KL.
 | test_set_30k KL (raw) ↓ | 0.0224 | 0.0230 | 0.0185 | 0.0185 |
 | OOD KL (raw) ↓ | 0.312 | 0.483 | 0.110 | 0.123 |
 | OOD choice top-1 ↑ | 0.888 | 0.900 | 0.935 | 0.940 |
-| [train-jev-classification-pk](../data/train-jev-classification-pk) (13 datasets) accuracy ↑ | 0.647 | 0.642 | 0.678 | 0.687 |
+| [train-jev-classification-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-classification-pk) (13 datasets) accuracy ↑ | 0.647 | 0.642 | 0.678 | 0.687 |
 | PK ECE ↓ | 0.076 | 0.050 | 0.103 | 0.048 |
 | PK: 8 sources Kev never saw ↑ | 0.603 | 0.600 | 0.630 | 0.640 |
 | transfer-v4 accuracy ↑ | 0.779 | 0.805 | 0.851 | 0.858 |
@@ -484,8 +484,8 @@ jev-distill teacher, so they are not used for KL.
   ACOS target per-review F1 / DI skill improves while the field-level accuracy diagnostic falls about 0.14pp; the two uncorrected significant diagnostic declines do not mean that HLE or ACOS target F1 declined significantly.
 - Question-level diagnostic intervals are not DI-index confidence intervals; McNemar tests are not corrected for multiple comparisons. All areas improving does not mean all tasks improve.
   The full run still covers only the public 37-benchmark scoreable text panel, not private Full or full multimodal HLE. autotrust/JEV-27B-VL has only the historical 6,000-question result, no full-panel pairing.
-  Scores, per-benchmark skill, protocol, input hashes and merge audit: [di37_results.json](../reports/v0.3.0/di37_results.json).
+  Scores, per-benchmark skill, protocol, input hashes and merge audit: [di37_results.json](https://github.com/shibing624/train-jev/reports/v0.3.0/di37_results.json).
 - The OOD KL increase is the expected cost of gold supervision moving away from the Jev teacher: accuracy does not drop, and
   refitting temperatures on the jev-distill calibration split gives 0.472 / 0.121 (4B / 27B), close to the raw values.
 - Conclusion: the v0.3.0 recipe gives small, consistent out-of-distribution gains (transfer-v4, Decision Index, calibration),
-  much smaller than on [train-jev-pk](../data/train-jev-pk), which contains in-family rule items and public-gold sources seen in training.
+  much smaller than on [train-jev-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-pk), which contains in-family rule items and public-gold sources seen in training.

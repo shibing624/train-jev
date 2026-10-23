@@ -40,4 +40,4 @@ python scripts/evaluate_pk.py --dataset data/train-jev-pk --source-dir data/pk \
 
 旧分类来源：AG News、DAIR Emotion、BANKING77、MASSIVE en/zh、XNLI en/zh、TNEWS、SST-5、Yelp、BoolQ、Civil Comments。具体公开仓库和许可状态在每行 `source` 中；未核验许可的原文不包含在本仓库，不能因标签是公开的就认为原文可自由再分发。
 
-部分题来自与新增训练相同的公开来源或规则族，但不是同一道题；它不是完全跨来源的泛化评测。所有题已用于模型比较，不应再用于选点、训练或温度拟合。统计口径与局限见 [结果文档](../../docs/results.md)。
+部分题来自与新增训练相同的公开来源或规则族，但不是同一道题；它不是完全跨来源的泛化评测。所有题已用于模型比较，不应再用于选点、训练或温度拟合。统计口径与局限见 [结果文档](https://github.com/shibing624/train-jev/docs/results.md)。

@@ -1,6 +1,6 @@
 # Train train-jev from a Qwen backbone
 
-[中文](training.md)
+[中文](https://github.com/shibing624/train-jev/docs/training.md)
 
 This repository trains probabilistic decision models with **LoRA + a 24-slot decision head**. The full path is a public Qwen backbone → distillation of Jev target distributions → gold-and-rule supervised refinement → calibration and serving.
 
@@ -147,7 +147,7 @@ CKPT=runs/jev-4b-supervised/step00512 bash scripts/run_serve.sh
 bash scripts/run_serve.sh
 ```
 
-More flags are in the [serving guide](serving.en.md).
+More flags are in the [serving guide](https://github.com/shibing624/train-jev/docs/serving.en.md).
 
 ## 6. Measured training time and results
 
@@ -160,9 +160,9 @@ More flags are in the [serving guide](serving.en.md).
 
 These timings describe initial distillation and historical gold refinement, not the new tasksource stage. No verified incremental training time was provided for this round, so none is extrapolated. Current selected steps are described above.
 
-| Released model | [train-jev-pk](../data/train-jev-pk) accuracy ↑ | [transfer-v4](https://github.com/jaredpalmer/kev) accuracy ↑ | transfer-v4 ECE ↓ | [Full Decision Index](https://github.com/apolinario/decision-index) score ↑ |
+| Released model | [train-jev-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-pk) accuracy ↑ | [transfer-v4](https://github.com/jaredpalmer/kev) accuracy ↑ | transfer-v4 ECE ↓ | [Full Decision Index](https://github.com/apolinario/decision-index) score ↑ |
 |---|---:|---:|---:|---:|
 | shibing624/train-jev-4b-lora | 76.03% | 0.8201 | 0.0588 | 42.00 |
 | shibing624/train-jev-27b-lora | 79.52% | 0.8476 | 0.0681 | 57.01 |
 
-These are released-model results under fixed protocols, not expected scores for the PAWS example. Comparisons against [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL), Kev and TypeSafe API, with limitations, are in [the results guide](results.en.md).
+These are released-model results under fixed protocols, not expected scores for the PAWS example. Comparisons against [autotrust/JEV-27B-VL](https://huggingface.co/autotrust/JEV-27B-VL), Kev and TypeSafe API, with limitations, are in [the results guide](https://github.com/shibing624/train-jev/docs/results.en.md).

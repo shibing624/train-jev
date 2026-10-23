@@ -1,6 +1,6 @@
 # 评测
 
-[English](evaluation.en.md)
+[English](https://github.com/shibing624/train-jev/docs/evaluation.en.md)
 
 发布的 4B / 27B 模型用五套互补的评测衡量。只看训练集上的准确率不够；也不要把新的完整面板和旧的抽样结果混在一起比，
 或者悄悄换掉读法 / 推理后端。
@@ -11,12 +11,12 @@
 | [Decision Index 0.3 抽样](https://github.com/apolinario/decision-index) | 多领域的决策能力 | 6,000 题，35 个计分基准 |
 | [Kev transfer-v4](https://github.com/jaredpalmer/kev) | Kev 训练时没见过的来源上的准确率和校准 | 656 题 |
 | [看图决策](https://github.com/apolinario/decision-index) | 零样本的图像决策能力 | 5 个数据集共 1,444 题 |
-| [train-jev-classification-pk](../data/train-jev-classification-pk)（13 数据集分类 PK） | 中英文多数据集上的配对准确率 / 校准 | 1,300 题，13×100 |
+| [train-jev-classification-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-classification-pk)（13 数据集分类 PK） | 中英文多数据集上的配对准确率 / 校准 | 1,300 题，13×100 |
 
 超过 16 个选项的选择题另做一组对比：同一个 4B checkpoint，CLINC150 / BANKING77 / MASSIVE en 各 600 题。
-全部结果和局限见 [results.md](results.md)。所有评测都不用 test 标签拟合温度或挑选 prompt。
+全部结果和局限见 [results.md](https://github.com/shibing624/train-jev/docs/results.md)。所有评测都不用 test 标签拟合温度或挑选 prompt。
 
-v0.3.0 另有 [train-jev-pk](../data/train-jev-pk)：2,494 题、22 个任务，对应历史上称为“封存同题 PK”的结果。
+v0.3.0 另有 [train-jev-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-pk)：2,494 题、22 个任务，对应历史上称为“封存同题 PK”的结果。
 这套评测含训练中出现过的公开来源和同族规则题，不是完全跨来源的泛化评测；固定题目不应再用于训练、选点或拟合温度。
 
 ## 1. 蒸馏语料与温度校准
@@ -122,8 +122,8 @@ python -m trainjev.eval_vision --base Qwen/Qwen3.8-27B --adapter runs/jev-27b/be
 
 ## 6. train-jev-pk、train-jev-classification-pk 与宽选项
 
-两套固定题库均发布完整索引，但不是全部原文：[train-jev-pk](../data/train-jev-pk) 有 2,494 题、22 个任务，
-附带 1,594 题输入、其余 900 题仅含索引和标签；[train-jev-classification-pk](../data/train-jev-classification-pk) 有 1,300 题、13 个任务，
+两套固定题库均发布完整索引，但不是全部原文：[train-jev-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-pk) 有 2,494 题、22 个任务，
+附带 1,594 题输入、其余 900 题仅含索引和标签；[train-jev-classification-pk](https://github.com/shibing624/train-jev/tree/main/data/train-jev-classification-pk) 有 1,300 题、13 个任务，
 附带 500 题输入、其余 800 题仅含索引和标签。未核验许可的原文不再分发；已包含的原文也保留上游署名和许可，
 详情见各数据集 README，仓库代码许可不覆盖上游原文。
 
@@ -163,7 +163,7 @@ URL=http://127.0.0.1:8020 NAME=jev-4b SUITE=data/wide LIMIT=600 bash scripts/run
 不要拿不相关的平均数比。
 
 宽选项评测记录了每次请求实际用的策略、选项顺序哈希和模型输入长度；9 个预热请求不计入。permute 带来的准确率提升和
-置信度偏低见 [results.md §8](results.md#8-超过-16-个选项的选择题)。读法策略和平均后的温度要在独立的开发集上选，再单独评测，
+置信度偏低见 [results.md §8](https://github.com/shibing624/train-jev/docs/results.md#8-超过-16-个选项的选择题)。读法策略和平均后的温度要在独立的开发集上选，再单独评测，
 不要在这 600 道 test 题上拟合温度。
 
 ## 7. 不做的声明
